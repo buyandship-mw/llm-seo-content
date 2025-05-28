@@ -156,6 +156,24 @@ def parse_csv_to_input_data(csv_file_path: str) -> List[InputData]:
                 pass
     return input_data_list
 
+def load_categories_from_csv(filepath: str) -> List[str]:
+    """Loads categories from a single-column CSV file (one category per line)."""
+    categories: List[str] = []
+    try:
+        with open(filepath, 'r', encoding='utf-8', newline='') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if row and row[0].strip(): # Check for non-empty row and cell
+                    categories.append(row[0].strip())
+        print(f"Successfully loaded {len(categories)} categories from '{filepath}'.")
+    except FileNotFoundError:
+        print(f"Error: Categories file '{filepath}' not found.")
+        raise # Or return empty list / handle as appropriate
+    except Exception as e:
+        print(f"An error occurred while loading categories from '{filepath}': {e}")
+        raise # Or return empty list / handle as appropriate
+    return categories
+
 if __name__ == '__main__':
     # Create a dummy CSV file for testing - 'media' column removed, 'category' is now single string
     dummy_csv_content_refactored = (
