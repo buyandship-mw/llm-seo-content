@@ -16,7 +16,6 @@ Sample (demos) data schema:
 - title
 - content
 - hashtags | null
-- media (item photos)
 - like_count
 
 Input data schema:
@@ -32,7 +31,6 @@ Input data schema:
 - warehouse_location
 - item_weight
 - region
-- media
 - url_extracted_text
 
 Output data schema:
@@ -57,4 +55,3 @@ Post data schema:
 - title
 - content
 - hashtags | null
-- media (item photos)
