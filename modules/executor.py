@@ -1,0 +1,41 @@
+from typing import List
+from post_generator import (
+    InputData,
+    PostData,
+    OpenAIClient,
+    generate_post_data_from_input
+)
+
+def process_batch_input_data(
+    input_data_list: List[InputData],
+    available_categories: List[str],
+    ai_client: OpenAIClient,
+    num_category_demos: int = 1,
+    num_content_demos: int = 1
+) -> List[PostData]:
+    """
+    Processes a list of InputData items and returns a list of PostData items.
+    """
+    if not available_categories:
+        raise ValueError("The 'available_categories' list cannot be empty.")
+
+    all_post_data: List[PostData] = []
+    for i, input_item in enumerate(input_data_list):
+        print(f"Processing item {i + 1}/{len(input_data_list)}: '{input_item.item_name}'...")
+        try:
+            post_data_result = generate_post_data_from_input(
+                input_data_obj=input_item,
+                available_categories=available_categories,
+                ai_client=ai_client,
+                num_category_demos=num_category_demos,
+                num_content_demos=num_content_demos
+            )
+            all_post_data.append(post_data_result)
+            print(f"Successfully processed item: '{input_item.item_name}'")
+        except ValueError as ve:
+            print(f"ValueError processing item '{input_item.item_name}': {ve}. Skipping this item.")
+        except Exception as e:
+            print(f"An unexpected error occurred while processing item '{input_item.item_name}': {e}. Skipping this item.")
+            # Optionally, create a PostData object with error details here
+            
+    return all_post_data
