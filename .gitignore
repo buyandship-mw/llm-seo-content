@@ -1,4 +1,3 @@
 __pycache__
-.pyc
-.ini
-.csv
+config.ini
+*.csv
