@@ -80,7 +80,7 @@ class InputData:
         if not self.warehouse_id: raise ValueError("InputData: warehouse_id cannot be empty.")
         if not self.warehouse_location: raise ValueError("InputData: warehouse_location cannot be empty.")
         if not self.region: raise ValueError("InputData: region cannot be empty.")
-        if not self.url_extracted_text: raise ValueError("InputData: url_extracted_text cannot be empty.")
+        # if not self.url_extracted_text: raise ValueError("InputData: url_extracted_text cannot be empty.")
 
         # Numeric validations
         if self.item_unit_price <= 0:
