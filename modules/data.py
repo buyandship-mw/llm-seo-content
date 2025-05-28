@@ -8,6 +8,7 @@ class DemoData:
     category: str
     item_name: str
     item_unit_price: float
+    item_unit_price_currency: str
     item_url: str
     site: str
     warehouse_id: str
@@ -26,6 +27,8 @@ class DemoData:
         # Required string fields
         if not self.post_id: raise ValueError("DemoData: post_id cannot be empty.")
         if not self.item_category: raise ValueError("DemoData: item_category cannot be empty.")
+        if not self.item_unit_price: raise ValueError("DemoData: item_unit_price cannot be empty.")
+        if not self.item_unit_price_currency: raise ValueError("DemoData: item_unit_price_currency cannot be empty.")
         if not self.category: raise ValueError("DemoData: category cannot be empty.")
         if not self.item_name: raise ValueError("DemoData: item_name cannot be empty.")
         if not self.item_url: raise ValueError("DemoData: item_url cannot be empty.")
@@ -36,6 +39,7 @@ class DemoData:
         if not self.region: raise ValueError("DemoData: region cannot be empty.")
         if not self.title: raise ValueError("DemoData: title cannot be empty.")
         if not self.content: raise ValueError("DemoData: content cannot be empty.")
+        if not self.like_count: raise ValueError("DemoData: like_count cannot be empty.")
 
         # Numeric validations
         if self.item_unit_price <= 0:
@@ -53,6 +57,7 @@ class InputData:
     item_category: str
     item_name: str
     item_unit_price: float
+    item_unit_price_currency: str
     item_url: str
     site: str
     warehouse_id: str
@@ -68,6 +73,8 @@ class InputData:
         # Required string fields
         if not self.item_category: raise ValueError("InputData: item_category cannot be empty.")
         if not self.item_name: raise ValueError("InputData: item_name cannot be empty.")
+        if not self.item_unit_price: raise ValueError("DemoData: item_unit_price cannot be empty.")
+        if not self.item_unit_price_currency: raise ValueError("DemoData: item_unit_price_currency cannot be empty.")
         if not self.item_url: raise ValueError("InputData: item_url cannot be empty.")
         if not self.site: raise ValueError("InputData: site cannot be empty.")
         if not self.warehouse_id: raise ValueError("InputData: warehouse_id cannot be empty.")
@@ -104,7 +111,8 @@ class PostData:
     item_category: str
     category: str
     item_name: str
-    item_unit_price_usd: float # Specifically USD
+    item_unit_price: float
+    item_unit_price_currency: str
     item_url: str
     site: str  # Shipment location
     warehouse_id: str
@@ -122,6 +130,8 @@ class PostData:
         if not self.item_category: raise ValueError("DemoData: item_category cannot be empty.")
         if not self.category: raise ValueError("DemoData: category cannot be empty.")
         if not self.item_name: raise ValueError("DemoData: item_name cannot be empty.")
+        if not self.item_unit_price: raise ValueError("DemoData: item_unit_price cannot be empty.")
+        if not self.item_unit_price_currency: raise ValueError("DemoData: item_unit_price_currency cannot be empty.")
         if not self.item_url: raise ValueError("DemoData: item_url cannot be empty.")
         # Potentially add URL validation here: from urllib.parse import urlparse; if not all([urlparse(self.item_url).scheme, urlparse(self.item_url).netloc]): raise ValueError("Invalid item_url format")
         if not self.site: raise ValueError("DemoData: site cannot be empty.")

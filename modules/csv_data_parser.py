@@ -45,6 +45,7 @@ def parse_csv_to_demo_data(csv_file_path: str, list_delimiter: str = '|') -> Lis
                 category_str = get_val('category') # Now a single string
                 item_name_str = get_val('item_name')
                 item_unit_price_str = get_val('item_unit_price')
+                item_unit_price_currency_str = get_val('item_unit_price_currency')
                 item_url_str = get_val('item_url')
                 site_str = get_val('site')
                 warehouse_id_str = get_val('warehouse_id')
@@ -76,6 +77,7 @@ def parse_csv_to_demo_data(csv_file_path: str, list_delimiter: str = '|') -> Lis
                     category=category_str if category_str is not None else "", # Pass as string
                     item_name=item_name_str if item_name_str is not None else "",
                     item_unit_price=demo_price_val,
+                    item_unit_price_currency=item_unit_price_currency_str if item_unit_price_currency_str is not None else "",
                     item_url=item_url_str if item_url_str is not None else "",
                     site=site_str if site_str is not None else "",
                     warehouse_id=warehouse_id_str if warehouse_id_str is not None else "",
@@ -114,6 +116,7 @@ def parse_csv_to_input_data(csv_file_path: str) -> List[InputData]:
                 item_category_str = get_val('item_category')
                 item_name_str = get_val('item_name')
                 item_unit_price_str = get_val('item_unit_price')
+                item_unit_price_currency_str = get_val('item_unit_price_currency')
                 item_url_str = get_val('item_url')
                 site_str = get_val('site')
                 warehouse_id_str = get_val('warehouse_id')
@@ -136,6 +139,7 @@ def parse_csv_to_input_data(csv_file_path: str) -> List[InputData]:
                     item_category=item_category_str if item_category_str is not None else "",
                     item_name=item_name_str if item_name_str is not None else "",
                     item_unit_price=input_price_val,
+                    item_unit_price_currency=item_unit_price_currency_str if item_unit_price_currency_str is not None else "",
                     item_url=item_url_str if item_url_str is not None else "",
                     site=site_str if site_str is not None else "",
                     warehouse_id=warehouse_id_str if warehouse_id_str is not None else "",
@@ -155,13 +159,13 @@ def parse_csv_to_input_data(csv_file_path: str) -> List[InputData]:
 if __name__ == '__main__':
     # Create a dummy CSV file for testing - 'media' column removed, 'category' is now single string
     dummy_csv_content_refactored = (
-        "post_id,item_category,category,discount,item_name,item_unit_price,item_url,payment_method,site,warehouse_id,warehouse_location,item_weight,region,title,content,hashtags,like_count,url_extracted_text\n"
+        "post_id,item_category,category,discount,item_name,item_unit_price,item_unit_price_currency,item_url,payment_method,site,warehouse_id,warehouse_location,item_weight,region,title,content,hashtags,like_count,url_extracted_text\n"
         # Valid row for DemoData
-        "post1,Electronics,Audio Gadget,10%,Wireless Earbuds,79.99,http://example.com/earbuds,Credit Card,US-West,WH001,California,0.1kg,USA,Great Earbuds Review,These are amazing earbuds for the price.,#earbuds|#audio,1050,Full text about earbuds from URL\n"
+        "post1,Electronics,Audio Gadget,10%,Wireless Earbuds,79.99,USD,http://example.com/earbuds,Credit Card,US-West,WH001,California,0.1kg,USA,Great Earbuds Review,These are amazing earbuds for the price.,#earbuds|#audio,1050,Full text about earbuds from URL\n"
         # Valid row for InputData (DemoData will fail: post_id, title, content, etc., are empty which __post_init__ catches)
-        ",Books,Sci-Fi,,Space Opera Novel,19.99,http://example.com/book,,UK-South,WH002,London,0.5kg,UK,,,,#books,,Full text about the book\n"
+        ",Books,Sci-Fi,,Space Opera Novel,19.99,HKD,http://example.com/book,,UK-South,WH002,London,0.5kg,UK,,,,#books,,Full text about the book\n"
         # Valid row for DemoData (url_extracted_text not used by DemoData)
-        "post2,Fashion,Apparel,SALE,Cool T-Shirt,25.00,http://example.com/tshirt,PayPal,EU-Central,WH003,Berlin,0.2kg,GER,My New Favorite T-Shirt!,This t-shirt is so comfortable.,#fashion|#style,300,\n"
+        "post2,Fashion,Apparel,SALE,Cool T-Shirt,25.00,JPY,http://example.com/tshirt,PayPal,EU-Central,WH003,Berlin,0.2kg,GER,My New Favorite T-Shirt!,This t-shirt is so comfortable.,#fashion|#style,300,\n"
         # Invalid for both: item_name empty
         "post3,Home Goods,Decor,, ,9.99,http://example.com/vase,,,,,,,,,,,,\n"
         # Invalid for both: item_unit_price negative
