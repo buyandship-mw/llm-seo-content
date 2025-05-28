@@ -126,8 +126,8 @@ class PostData:
         if not self.content: raise ValueError("DemoData: content cannot be empty.")
 
         # Numeric validations
-        if self.item_unit_price_usd <= 0:
-            raise ValueError("PostData: item_unit_price_usd must be positive.")
+        if self.item_unit_price <= 0:
+            raise ValueError("PostData: item_unit_price must be positive.")
 
         # Optional field validations
         if self.payment_method is not None and not self.payment_method.strip():
