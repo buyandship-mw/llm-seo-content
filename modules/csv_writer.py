@@ -1,7 +1,8 @@
 import csv
 from dataclasses import dataclass
 from typing import List
-from modules.data import PostData
+
+from modules.models import PostData
 
 def write_post_data_to_csv(filepath: str, post_data_list: List[PostData]) -> None:
     """Writes a list of PostData objects to a CSV file."""

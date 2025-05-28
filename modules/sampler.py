@@ -1,4 +1,4 @@
-from modules.data import InputData, DemoData
+from modules.models import InputData, DemoData
 from typing import List, Dict, Optional, Union
 
 def retrieve_demos(input_data: InputData, num_examples: int, for_prompt_type: str) -> List[DemoData]:

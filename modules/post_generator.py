@@ -1,7 +1,7 @@
 import json
 from typing import Dict, List
 
-from modules.data import DemoData, InputData, PostData
+from modules.models import DemoData, InputData, PostData
 from modules.azure_openai_client import OpenAIClient
 from modules.sampler import retrieve_demos
 

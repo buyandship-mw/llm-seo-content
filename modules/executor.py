@@ -1,10 +1,8 @@
 from typing import List
-from post_generator import (
-    InputData,
-    PostData,
-    OpenAIClient,
-    generate_post_data_from_input
-)
+
+from modules.models import InputData, PostData
+from modules.azure_openai_client import OpenAIClient
+from modules.post_generator import generate_post_data_from_input
 
 def process_batch_input_data(
     input_data_list: List[InputData],
