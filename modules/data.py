@@ -91,22 +91,6 @@ class InputData:
             raise ValueError("InputData: item_weight, if numeric, must be positive.")
 
 @dataclass
-class OutputData:
-    category: str
-    title: str
-    content: str
-    hashtags: Optional[List[str]] = field(default_factory=list)
-
-    def __post_init__(self):
-        # Required string fields
-        if not self.category: raise ValueError("DemoData: category cannot be empty.")
-        if not self.title: raise ValueError("OutputData: title cannot be empty.")
-        if not self.content: raise ValueError("OutputData: content cannot be empty.")
-
-        # TODO: Category validation
-        # TODO: Hashtags validation
-
-@dataclass
 class PostData:
     item_category: str
     category: str
@@ -151,6 +135,8 @@ class PostData:
 
         if isinstance(self.item_weight, float) and self.item_weight <= 0:
             raise ValueError("PostData: item_weight, if numeric, must be positive.")
+        
+        # TODO: Validate category is valid
         
         # Discount validation example: if it's a fixed amount (float), it should probably be positive.
         # If it's a percentage string like "10%", that's different.
