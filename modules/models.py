@@ -68,6 +68,7 @@ class InputData:
     payment_method: Optional[str] = None
     item_weight: Optional[Union[float, str]] = None
     item_unit_price_local: Optional[float] = None
+    image_url: Optional[str] = None
 
     def __post_init__(self):
         # Required string fields

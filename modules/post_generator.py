@@ -1,189 +1,298 @@
-import json
-from typing import Dict, List
+# modules/post_generator.py
 
+import json
+from typing import Dict, List, Optional, Union 
+
+# Assuming these models and clients are defined in your 'modules' directory
 from modules.models import DemoData, InputData, PostData
-from modules.openai_client import AzureOpenAIClient
+from modules.openai_client import StandardOpenAIClient # Using your new client
 from modules.sampler import Sampler
 
+# --- Regional Placeholders for Demo Formatting ---
+# This can be expanded and ideally moved to a separate config/utils file if it grows large
+REGIONAL_PLACEHOLDERS = {
+    "HK": {
+        "recommendation_intro": "發掘 [Product Name]",
+        "recommendation_body": "(根據網上搜尋嘅官方資料同專業評測，簡述產品主要功能、獨特賣點同推薦原因...)",
+        "reviews_intro": "用家點睇",
+        "reviews_body": "(總結網上用家對呢件產品嘅主要好評同常見問題...)",
+        "bns_intro": "點解要用BNS由 {warehouse_origin_country} 代運 [Product Name]?",
+        "bns_body": "(結合BNS三大優勢「實際重量收費，運費低廉透明」、「免費合併全球14個倉庫包裹」、「實時追蹤，靈活本地派送」，說明點樣幫你買到心頭好...)"
+    },
+    "TW": {
+        "recommendation_intro": "探索 [Product Name]",
+        "recommendation_body": "(綜合官方資訊與專業評測，簡述產品主要功能、獨特賣點以及為何推薦...)",
+        "reviews_intro": "使用者怎麼說",
+        "reviews_body": "(總結網路上使用者回饋，包括常見的讚譽以及可能需注意之處...)",
+        "bns_intro": "為何選擇BNS從 {warehouse_origin_country} 代運 [Product Name]?",
+        "bns_body": "(結合BNS三大優勢「以實際重量收費，運費低廉透明」、「免費合併全球14處倉庫包裹」、「即時追蹤，彈性本地配送」，說明如何助您輕鬆購得心儀商品...)"
+    },
+    "EN": { # Default / English example
+        "recommendation_intro": "Discover the [Product Name]",
+        "recommendation_body": "(Summarize key features, benefits, and why it's a good product, based on web search from official sites and reputable reviews...)",
+        "reviews_intro": "What Users Are Saying",
+        "reviews_body": "(Summarize common praises and frequent concerns from user reviews found online...)",
+        "bns_intro": "Why Shop with BNS for your [Product Name] from {warehouse_origin_country}?",
+        "bns_body": "(Explain BNS advantages using the 3 USPs: 'Low, transparent shipping by actual weight', 'Free parcel consolidation across 14 global warehouses', 'Flexible delivery with real-time tracking', tailored to this product and its origin...)"
+    }
+}
+
 def format_demo_for_category_prompt(demo: DemoData) -> str:
-    """Formats a DemoData object for Prompt 1 (Category Prediction) few-shot example."""
-    item_details_str = f"""
+    item_details_str = f"""Item Details:
 Item Name: {demo.item_name}
-Item Category: {demo.item_category}
-"""
-    expected_json_output_str = json.dumps({"predicted_category": demo.category}, indent=4)
+Item's Own Category: {demo.item_category}
+Region: {demo.region}"""
+    expected_json_output_str = json.dumps({"predicted_category": demo.category}, indent=4, ensure_ascii=False)
     return f"{item_details_str}\n\nExpected JSON Output:\n```json\n{expected_json_output_str}\n```"
 
 def format_demo_for_title_content_prompt(demo: DemoData) -> str:
-    """Formats a DemoData object for Prompt 2 (Title/Content Gen) few-shot example."""
-    item_details_str = f"""Item Details:
-Item Name: {demo.item_name}
-Item Category: {demo.item_category}
-Site: {demo.site}
-Warehouse: {demo.warehouse_location}
-Region: {demo.region}
-Original Item Price: {demo.item_unit_price} {demo.item_unit_price_currency}
-Discount: {demo.discount or "N/A"}
-Post Category: {demo.category}"""
-    expected_json_output_str = json.dumps({"title": demo.title, "content": demo.content}, indent=4)
-    return f"{item_details_str}\n\nExpected JSON Output:\n```json\n{expected_json_output_str}\n```"
+    item_details_str = f"""Input Item Example (for context and style guidance):
+Name: {demo.item_name}
+Item's Own Category: {demo.item_category}
+Region for Post Style: {demo.region}
+Warehouse Location (for context): {demo.warehouse_location}
+(Note: For this example, web search would typically be performed for '{demo.item_name}' to generate the detailed content below, but here we use placeholders to demonstrate regional language style and structure.)"""
+
+    placeholders = REGIONAL_PLACEHOLDERS.get(demo.region.upper(), REGIONAL_PLACEHOLDERS["EN"]) 
+    
+    # Use warehouse_location directly in the placeholder string if needed
+    example_content_str = f"""## {placeholders['recommendation_intro'].replace('[Product Name]', demo.item_name)}
+{placeholders['recommendation_body']}
+
+## {placeholders['reviews_intro']}
+{placeholders['reviews_body']}
+
+## {placeholders['bns_intro'].replace('[Product Name]', demo.item_name).replace('{warehouse_location}', demo.warehouse_location or "the origin warehouse")}
+{placeholders['bns_body']}"""
+
+    expected_json_output_str = json.dumps({
+        "title": demo.item_name, 
+        "content": example_content_str
+    }, indent=4, ensure_ascii=False)
+
+    return f"{item_details_str}\n\nExpected JSON Output Example (illustrating structure and language style for region '{demo.region}'):\n```json\n{expected_json_output_str}\n```"
+
+# --- Core Prompting Functions ---
 
 def predict_post_category(
     input_data: InputData,
     available_categories: List[str],
-    ai_client: AzureOpenAIClient,
+    ai_client: StandardOpenAIClient,
     sampler: Sampler,
-    num_demos: int
+    num_demos: int,
+    model_name: str = "gpt-4.1-mini"
 ) -> str:
-    """
-    Generates Prompt 1 and calls the AI to predict the post category.
-    """
-    system_prompt_1 = """You are an expert AI assistant specializing in e-commerce and community engagement. Your task is to analyze item purchase details and select the single most appropriate category for a community post about this item from a given list. Focus on the item's nature, intended use, and common online shopping categorizations. Respond strictly in the specified JSON format."""
+    system_prompt_1 = """You are an expert AI assistant specializing in e-commerce. Your task is to analyze item details and select the single most appropriate category for a community post about this item from the given list. Respond strictly in the specified JSON format: {"predicted_category": "Chosen Category Name"}."""
     
     if not available_categories:
-        print("Warning: No available categories provided. Defaulting category.")
         raise ValueError("Available categories list cannot be empty.")
 
-    formatted_available_categories = "\n".join([f'    "{cat}"' for cat in available_categories])
+    formatted_available_categories = "[\n" + ",\n".join([f'    "{cat}"' for cat in available_categories]) + "\n]"
     
-    # Call the imported/module-level retrieve_demos function
     demos = sampler.retrieve_demos(input_data, num_examples=num_demos)
-    formatted_demos = "\n\nEXAMPLE:\n".join([format_demo_for_category_prompt(d) for d in demos])
-    if formatted_demos: formatted_demos = "EXAMPLE:\n" + formatted_demos
+    formatted_demos_str = "\n\n---\nEXAMPLE:\n".join([format_demo_for_category_prompt(d) for d in demos])
+    if formatted_demos_str: formatted_demos_str = "EXAMPLE:\n" + formatted_demos_str
 
-    user_query_1 = f"""Below are details of a purchased item. Please select the MOST appropriate post category for a community discussion about this item from the "Available Post Categories" list.
+    user_prompt_content = f"""Analyze the item details below and select the MOST appropriate post category from the "Available Post Categories" list.
 
 Available Post Categories:
 {formatted_available_categories}
 
-Respond with a JSON object containing a single key "predicted_category" where the value is the name of the selected category string from the list above.
+{formatted_demos_str if formatted_demos_str else "No examples provided for context."}
 
-Here are some examples of how items are categorized and the expected JSON output format:
---- BEGIN EXAMPLES ---
-{formatted_demos if formatted_demos else "No examples provided."}
---- END EXAMPLES ---
-
-Now, please categorize the following item and provide the output in the specified JSON format:
-
-Item Details:
-Item Name: {input_data.item_name}
-Item Category: {input_data.item_category}
-
-Expected JSON Output:"""
-
-    raw_json_response = ai_client.get_completion(system_prompt_1, user_query_1)
-    try:
-        clean_json_response = raw_json_response.strip().removeprefix("```json").removesuffix("```").strip()
-        if not clean_json_response: raise json.JSONDecodeError("Cleaned JSON response is empty", clean_json_response, 0)
-        category_data = json.loads(clean_json_response)
-        predicted_cat = category_data["predicted_category"]
-        if predicted_cat not in available_categories:
-            print(f"Warning: LLM predicted category '{predicted_cat}' not in available list. Using first available category.")
-            return available_categories[0]
-        return predicted_cat
-    except (json.JSONDecodeError, KeyError) as e:
-        print(f"Error parsing category JSON response: {e}\nRaw response was: '{raw_json_response}'")
-        return available_categories[0]
-
-
-def generate_title_and_content(
-    input_data: InputData,
-    predicted_category: str,
-    ai_client: AzureOpenAIClient,
-    sampler: Sampler,
-    num_demos: int
-) -> Dict[str, str]:
-    """
-    Generates Prompt 2 and calls the AI to generate title and content.
-    """
-    system_prompt_2 = f"""You are a creative and engaging AI copywriter specializing in crafting community posts for an e-commerce platform. Your goal is to generate an enthusiastic and informative post title and content based on the provided item details and post category.
-
-IMPORTANT INSTRUCTIONS:
-1.  **Regional Adaptation:** Tailor the language, tone, and style to the specified `region` ('{input_data.region}'). For example, use colloquial Cantonese-style Chinese for 'HK', Taiwanese Mandarin for 'TW', etc.
-2.  **Currency Presentation:** Clearly state the original purchase price as '{input_data.item_unit_price} {input_data.item_unit_price_currency}'. Make this sound natural. Do NOT attempt to convert this price.
-3.  **Item Details:** Weave in information from `item_name` ('{input_data.item_name}'), and `url_extracted_text` (if provided: '{input_data.url_extracted_text or "N/A"}').
-4.  **Purchase Context:** Mention `site` ('{input_data.site}') and `warehouse_location` ('{input_data.warehouse_location}').
-5.  **Tone:** Enthusiastic, helpful, like a real person.
-7.  **Value:** If `discount` ('{input_data.discount or "No discount"}') is mentioned and not null/empty, highlight it.
-8.  Do NOT invent new product features.
-9.  The post is for the '{predicted_category}' category.
-10. **Respond with a JSON object containing two keys: "title" (string) and "content" (string). Ensure content is a single string, possibly with newlines (\\n).**
-"""
-    # Call the imported/module-level retrieve_demos function
-    demos = sampler.retrieve_demos(input_data, num_examples=num_demos)
-    formatted_demos = "\n\nEXAMPLE:\n".join([format_demo_for_title_content_prompt(d) for d in demos])
-    if formatted_demos: formatted_demos = "EXAMPLE:\n" + formatted_demos
-        
-    user_query_2 = f"""Generate an engaging community post (Title and Content) for the following item purchase. Respond in the specified JSON format.
-
-Here are some examples of great community posts and their JSON output format:
---- BEGIN EXAMPLES ---
-{formatted_demos if formatted_demos else "No examples provided."}
---- END EXAMPLES ---
-
-Now, generate a Title and Content for the following item. Provide the output in the specified JSON format:
+---
+Item to categorize:
 
 Item Details:
 Item Name: {input_data.item_name}
 Item's Own Category: {input_data.item_category}
-URL Extracted Text: {input_data.url_extracted_text or "N/A"}
-Site: {input_data.site}
-Warehouse Location: {input_data.warehouse_location}
-Warehouse ID: {input_data.warehouse_id}
-Region: {input_data.region}
-Original Item Price: {input_data.item_unit_price} {input_data.item_unit_price_currency}
-Discount: {input_data.discount or "N/A"}
-Payment Method: {input_data.payment_method or "N/A"}
-Item Weight: {input_data.item_weight or "N/A"}
-Determined Post Category: {predicted_category}
+Region (for context of post): {input_data.region}
+URL Extracted Text (if available): {input_data.url_extracted_text or "N/A"}
+
+Based on these details, what is the single most appropriate post category?
+Respond strictly with a JSON object: {{"predicted_category": "Chosen Category Name"}}
 
 Expected JSON Output:"""
 
-    raw_json_response = ai_client.get_completion(system_prompt_2, user_query_2)
-    try:
-        clean_json_response = raw_json_response.strip().removeprefix("```json").removesuffix("```").strip()
-        if not clean_json_response: raise json.JSONDecodeError("Cleaned JSON response is empty", clean_json_response, 0)
-        title_content_data = json.loads(clean_json_response)
-        if "title" in title_content_data and "content" in title_content_data:
-            return title_content_data
-        else:
-            raise KeyError("Missing 'title' or 'content' in JSON response.")
-    except (json.JSONDecodeError, KeyError) as e:
-        print(f"Error parsing title/content JSON response: {e}\nRaw response was: '{raw_json_response}'")
-        return {"title": "Error: Could not generate title", "content": f"Error: Could not generate content. Raw LLM output was: {raw_json_response}"}
+    messages = [
+        {"role": "system", "content": system_prompt_1},
+        {"role": "user", "content": user_prompt_content}
+    ]
+    
+    # Using get_completion as this task does not require web search
+    raw_json_string = ai_client.get_completion( 
+        model=model_name, 
+        messages=messages
+    )
 
-# --- Main Orchestration Function ---
+    if not raw_json_string:
+        print(f"Error: No response from AI for category prediction of '{input_data.item_name}'. Defaulting.")
+        return available_categories[0] if available_categories else "Other"
+        
+    try:
+        clean_json_string = raw_json_string.strip()
+        if clean_json_string.startswith("```json"):
+            clean_json_string = clean_json_string[len("```json"):].strip()
+        if clean_json_string.endswith("```"):
+            clean_json_string = clean_json_string[:-len("```")].strip()
+        
+        category_data = json.loads(clean_json_string)
+        predicted_cat = category_data.get("predicted_category")
+
+        if not predicted_cat or predicted_cat not in available_categories:
+            print(f"Warning: LLM predicted category '{predicted_cat}' is invalid or not in available list. Raw: '{raw_json_string}'. Defaulting.")
+            return available_categories[0] if available_categories else "Other"
+        return predicted_cat
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        print(f"Error parsing category JSON response for '{input_data.item_name}': {e}\nRaw response was: '{raw_json_string}'. Defaulting.")
+        return available_categories[0] if available_categories else "Other"
+
+
+def generate_title_and_content(
+    input_data: InputData,
+    predicted_post_category: str,
+    ai_client: StandardOpenAIClient,
+    sampler: Sampler,
+    num_demos: int,
+    model_name: str = "gpt-4.1-mini"
+) -> Dict[str, str]:
+    system_prompt_content = f"""You are an Expert Recommender and Content Curator for BNS, a global package forwarding service. Your primary goal is to create informative and appealing marketplace-style posts that help users discover products and understand how BNS can help them acquire these items.
+
+Your task is to:
+1.  Thoroughly analyze the provided item details.
+2.  **Search the internet to gather fresh and relevant information** about the product. This research will form the basis for the 'Product Recommendation' and 'User Reviews Summary' sections. Focus on factual summaries.
+3.  Generate a concise, engaging, product-focused `title`. This title should be based on the item's name ('{input_data.item_name}') but refined by you for clarity, appeal, and suitability as a product listing title.
+4.  Generate `content` structured into three specific Markdown sections:
+    - `## Discover the {input_data.item_name}`: Based on your internet search of official product websites and reputable expert review sites, summarize the product's key features, compelling benefits, and why it stands out.
+    - `## What Users Are Saying`: Based on your internet search of user review aggregators, e-commerce sites, and forums, synthesize common themes from user feedback. Highlight frequently mentioned praises and any notable concerns or drawbacks.
+    - `## Why Shop with BNS?`: Explain the advantages of using BNS to purchase this specific item, leveraging the fact that it can be shipped from our warehouse in '{input_data.warehouse_location}'. Weave in these core BNS benefits, tailoring them to the product: 
+        1. Low, transparent shipping rates based on actual weight only.
+        2. Free parcel consolidation from our 14+ global warehouses lets you shop from multiple stores and save.
+        3. Flexible local delivery options with real-time tracking for peace of mind.
+5.  Adapt your language, tone, and style to the specified target `region` for the post ('{input_data.region}'). The few-shot examples illustrate how language and style should vary by region.
+6.  Your entire response MUST be a single, valid JSON object with exactly two keys: "title" (string) and "content" (string). The `content` string must use Markdown for the section headings as specified.
+"""
+
+    demos = sampler.retrieve_demos(input_data, num_examples=num_demos)
+    formatted_demos_str = "\n\n---\n".join([format_demo_for_title_content_prompt(d) for d in demos])
+    if formatted_demos_str:
+        formatted_demos_str = f"Here are some examples of the input item context and the desired JSON output structure with regional style placeholders. These illustrate the expected format and language style for different regions:\n\n{formatted_demos_str}\n\n---"
+    else:
+        formatted_demos_str = "No examples provided for context. Please rely on the main instructions."
+
+    user_prompt_for_item = f"""{formatted_demos_str}
+
+Now, generate the expert recommender post for the following item.
+Remember to:
+- **Search the internet comprehensively** for product recommendations and user reviews.
+- **Generate a refined title** based on the product's name.
+- **Strictly adhere to the JSON output format** (`{{"title": "Your Generated Title", "content": "## Section 1\\n...\\n\\n## Section 2\\n...\\n\\n## Section 3\\n..."}}`) and the three specified Markdown sections in the content.
+- **Tailor the language and style** to the target region: '{input_data.region}'.
+
+Item Details for Processing:
+- Product Name: {input_data.item_name}
+- Item's Own Category (for context): {input_data.item_category}
+- Item URL (for context and as a search starting point): {input_data.item_url}
+- URL Extracted Text (initial info from product page, if available): {input_data.url_extracted_text or 'N/A'}
+- Image URL (for visual context if available, not for direct display in text): {input_data.image_url or 'N/A'}
+- Target Region for this Post: {input_data.region}
+- BNS Warehouse Location (Origin for "Why BNS" section): {input_data.warehouse_location}
+- Discount (if any, mention if significant): {input_data.discount or 'N/A'}
+- Post Category (overall category for this BNS post): {predicted_post_category}
+
+Expected JSON Output:"""
+    
+    messages_for_llm = [{"role": "system", "content": system_prompt_content}]
+    
+    user_content_payload: Union[str, List[Dict[str, Any]]] = user_prompt_for_item
+    if input_data.image_url:
+        current_user_content_list = [{"type": "text", "text": user_prompt_for_item}]
+        if input_data.image_url.startswith("http://") or input_data.image_url.startswith("https://"):
+            current_user_content_list.append({"type": "image_url", "image_url": {"url": input_data.image_url}})
+            user_content_payload = current_user_content_list
+        else:
+            print(f"Warning: Invalid image_url format: {input_data.image_url}. Sending text-only prompt for user content.")
+            
+    messages_for_llm.append({"role": "user", "content": user_content_payload})
+
+    raw_json_string = ai_client.get_completion_with_search(
+        model=model_name,
+        messages=messages_for_llm
+    )
+
+    default_error_response = {
+        "title": f"{input_data.item_name} - Content Generation Error",
+        "content": f"## Discover the {input_data.item_name}\nContent generation error.\n\n## What Users Are Saying\nContent generation error.\n\n## Why Shop with BNS?\nContent generation error for item from {input_data.warehouse_location}."
+    }
+
+    if not raw_json_string:
+        print(f"Error: No response from AI for title/content generation of '{input_data.item_name}'.")
+        return default_error_response
+        
+    try:
+        clean_json_string = raw_json_string.strip()
+        if clean_json_string.startswith("```json"):
+            clean_json_string = clean_json_string[len("```json"):].strip()
+        if clean_json_string.endswith("```"):
+            clean_json_string = clean_json_string[:-len("```")].strip()
+
+        parsed_data = json.loads(clean_json_string)
+        
+        final_title = parsed_data.get("title", "").strip()
+        final_content = parsed_data.get("content", "").strip()
+
+        if not final_title:
+            print(f"Warning: LLM generated an empty title for '{input_data.item_name}'. Using item name as fallback.")
+            final_title = input_data.item_name 
+        if not final_content or "## Discover" not in final_content: 
+            print(f"Warning: LLM generated empty or improperly structured content for '{input_data.item_name}'. Raw: '{raw_json_string}'")
+            if not final_content: final_content = "Error: LLM generated empty content."
+            # Return the potentially problematic content along with the title, or fallback to default_error_response entirely
+            # For now, returning what we got, even if partially malformed.
+            # A more robust error handling might return default_error_response here.
+
+        return {"title": final_title, "content": final_content}
+
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        print(f"Error parsing or validating title/content JSON for '{input_data.item_name}': {e}\nRaw response was: '{raw_json_string}'.")
+        return default_error_response
+
 
 def generate_post_data_from_input(
     input_data_obj: InputData,
     available_categories: List[str],
-    ai_client: AzureOpenAIClient,
+    ai_client: StandardOpenAIClient, 
     sampler: Sampler,
-    num_category_demos: int,
-    num_content_demos: int
+    num_category_demos: int = 1,
+    num_content_demos: int = 1,
+    category_model_name: str = "gpt-4.1-mini",
+    content_model_name: str = "gpt-4.1-mini"
 ) -> PostData:
     """
     Orchestrates the generation of a PostData object from an InputData object.
-    The list of available categories must be loaded by the caller and passed in.
-    The retrieve_demos function is imported from the 'sampler' module.
     """
     if not available_categories:
-        # This check is important. The caller is responsible for providing a valid list.
         raise ValueError("Available categories list cannot be empty.")
 
-    # The SamplerModule instance is no longer passed; retrieve_demos is called directly.
+    print(f"\n--- Generating Post for: {input_data_obj.item_name} (Region: {input_data_obj.region}) ---")
+
     llm_predicted_post_category = predict_post_category(
-        input_data_obj, available_categories, ai_client, sampler, num_demos=num_category_demos
+        input_data_obj, available_categories, ai_client, sampler, 
+        num_demos=num_category_demos, model_name=category_model_name
     )
+    print(f"Predicted Post Category for '{input_data_obj.item_name}': {llm_predicted_post_category}")
     
-    llm_generated_title_content = generate_title_and_content(
-        input_data_obj, llm_predicted_post_category, ai_client, sampler, num_demos=num_content_demos
+    llm_generated_elements = generate_title_and_content(
+        input_data_obj, llm_predicted_post_category, ai_client, sampler,
+        num_demos=num_content_demos, model_name=content_model_name
     )
+    generated_title = llm_generated_elements.get("title", f"{input_data_obj.item_name} - Title Error")
+    print(f"Generated Title for '{input_data_obj.item_name}': {generated_title}")
     
     post_data_instance = PostData(
         item_category=input_data_obj.item_category,
         category=llm_predicted_post_category,
-        item_name=input_data_obj.item_name,
+        item_name=input_data_obj.item_name, 
         item_unit_price=input_data_obj.item_unit_price,
         item_unit_price_currency=input_data_obj.item_unit_price_currency,
         item_url=input_data_obj.item_url,
@@ -191,126 +300,101 @@ def generate_post_data_from_input(
         warehouse_id=input_data_obj.warehouse_id,
         warehouse_location=input_data_obj.warehouse_location,
         region=input_data_obj.region,
-        title=llm_generated_title_content.get("title", "Error: Title not found"),
-        content=llm_generated_title_content.get("content", "Error: Content not found"),
-        discount=input_data_obj.discount if isinstance(input_data_obj.discount, (float, str, type(None))) else str(input_data_obj.discount),
+        title=generated_title,
+        content=llm_generated_elements.get("content", "Error: Content generation failed."),
+        discount=input_data_obj.discount,
         payment_method=input_data_obj.payment_method,
-        item_weight=input_data_obj.item_weight if isinstance(input_data_obj.item_weight, (float, str, type(None))) else str(input_data_obj.item_weight),
+        item_weight=input_data_obj.item_weight,
     )
     
     return post_data_instance
 
+# --- Test Execution Block ---
 if __name__ == "__main__":
-    print("--- Running Post Generator Test ---")
+    print("--- Running Post Generator Test (BNS Expert Recommender Persona) ---")
 
-    # 1. Define sample available categories (as it's now an input to the main function)
-    #    This list will also be used by the mock AzureOpenAIClient via the global.
-    _MOCK_AVAILABLE_CATEGORIES = ["Electronics & Gadgets", "Storage Solutions", "Computer Components", "Gaming Gear", "Other"]
+    # This global is for the mock OpenAIClient if it's defined in this file for testing.
+    # If you import the actual StandardOpenAIClient, it will use its own config.
+    # Ensure your actual StandardOpenAIClient's mock or real implementation is used.
+    _MOCK_AVAILABLE_CATEGORIES_FOR_TEST = ["Electronics & Gadgets", "Fashion & Apparel", "Home Goods", "Books", "Travel Gear"]
     
-    # 2. Create sample InputData
-    sample_input_data_dict = {
-        "item_category": "Electronics Component",
-        "discount": "15%",
-        "item_name": "SuperFast NVMe SSD 2TB",
-        "item_unit_price": 199.99,
-        "item_unit_price_currency": "USD",
-        "item_url": "http://example.com/ssd2tb",
-        "payment_method": "Credit Card",
-        "site": "SuperTechStore.com",
-        "warehouse_id": "WH-US-CA-01", # Added warehouse_id
-        "warehouse_location": "California Main Warehouse", # Renamed from 'warehouse'
-        "item_weight": "0.2 kg",
-        "region": "US",
-        "url_extracted_text": "Blazing fast speeds with new controller, 2TB capacity for all your games and files."
-    }
-    test_input_data = InputData(**sample_input_data_dict)
-
-    # 3. Instantiate mock AzureOpenAIClient
-    test_ai_client = AzureOpenAIClient()
-    demo_data: List[DemoData] = [
-        # US, Electronics
-        DemoData(post_id="p1", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (US)", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er_us", site="TechFindsUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="My US E-Reader", content="Content US", like_count=150),
-        DemoData(post_id="p2", item_category="Electronics", category="Audio", item_name="Headphones Y2 (US)", item_unit_price=199.50, item_unit_price_currency="USD", item_url="url_hp_us", site="SoundGoodUS", warehouse_id="WH-USE", warehouse_location="US-East", region="US", title="US Quiet Time", content="Music US", like_count=200),
-        DemoData(post_id="p4", item_category="Electronics", category="Gadgets", item_name="Thermostat T4 (US)", item_unit_price=99.00, item_unit_price_currency="USD", item_url="url_thermo_us", site="HomeSmartUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="US Smart Home", content="Install US", like_count=180),
-        # US, Other Category
-        DemoData(post_id="p7", item_category="Home Goods", category="Kitchen", item_name="Coffee Maker (US)", item_unit_price=90.00, item_unit_price_currency="USD", item_url="url_coffee_us", site="KitchenUS", warehouse_id="WH-USC", warehouse_location="US-Central", region="US", title="US Coffee", content="Best brew US", like_count=170),
-        # EU, Fashion
-        DemoData(post_id="p3", item_category="Fashion", category="Accessories", item_name="Silk Scarf Z3 (EU)", item_unit_price=80.00, item_unit_price_currency="EUR", item_url="url_scarf_eu", site="EuroStyle", warehouse_id="WH-EU-C", warehouse_location="EU-Central", region="EU", title="EU Elegant Scarf", content="Soft EU", like_count=120),
-        # EU, Electronics
-        DemoData(post_id="p8", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (EU)", item_unit_price=139.99, item_unit_price_currency="EUR", item_url="url_er_eu", site="TechFindsEU", warehouse_id="WH-EUE", warehouse_location="EU-East", region="EU", title="My EU E-Reader", content="Content EU", like_count=160), # EU version of E-Reader
-        # CA, Books
-        DemoData(post_id="p5", item_category="Books", category="Fiction", item_name="The Great Novel N5 (CA)", item_unit_price=15.99, item_unit_price_currency="CAD", item_url="url_novel_ca", site="ReadMoreCA", warehouse_id="WH-CA-E", warehouse_location="CA-East", region="CA", title="CA Good Read", content="Page turner CA", like_count=90),
-        # CA, Electronics
-        DemoData(post_id="p6", item_category="Electronics", category="Computers", item_name="Tablet Pro (CA)", item_unit_price=499.00, item_unit_price_currency="CAD", item_url="url_tab_ca", site="CanTech", warehouse_id="WH-CA-W", warehouse_location="CA-West", region="CA", title="CA New Tablet", content="Fast CA", like_count=250),
-        # AU, Other Category (neither Electronics nor Books, for full fallback)
-        DemoData(post_id="p9", item_category="Sports", category="Outdoor", item_name="Tent Z1 (AU)", item_unit_price=299.00, item_unit_price_currency="AUD", item_url="url_tent_au", site="AusOutdoor", warehouse_id="WH-AU-S", warehouse_location="AU-Sydney", region="AU", title="AU Camping", content="Great tent AU", like_count=100),
+    # Sample InputData for testing
+    sample_input_data_list = [
+        InputData(**{
+            "item_category": "Electronics", "discount": "10%", "item_name": "NovaBook Pro 15 Laptop (2024)",
+            "item_unit_price": 1299.99, "item_unit_price_currency": "USD", "item_url": "http://example.com/novabookpro",
+            "payment_method": "Visa", "site": "TechSprout.com", "warehouse_id": "WH-US-W",
+            "warehouse_location": "US-West Coast Hub", "item_weight": "1.8 kg", "region": "US",
+            "url_extracted_text": "The latest NovaBook Pro 15 features the new M3X chip, a stunning liquid retina display, and up to 20 hours of battery life. Perfect for professionals on the go.",
+            "image_url": "http://example.com/images/novabook.jpg" 
+        }),
+        InputData(**{
+            "item_category": "Travel Accessory", "discount": None, "item_name": "SkySailor Carry-On Suitcase",
+            "item_unit_price": 150.00, "item_unit_price_currency": "EUR", "item_url": "http://example.com/skysailor",
+            "payment_method": "PayPal", "site": "EuroTravelGoods.com", "warehouse_id": "WH-EU-FR",
+            "warehouse_location": "Paris Logistics Center (France)", "item_weight": "2.5 kg", "region": "HK",
+            "url_extracted_text": "Ultra-lightweight and durable carry-on, compliant with most airlines. Features 360-degree spinner wheels and a built-in TSA lock.",
+            "image_url": None
+        }),
     ]
-    sampler_instance = Sampler(all_demo_data=demo_data)
-
-    # 4. Call the main generation function
-    print("\nGenerating post data for a US item...")
-    try:
-        generated_post = generate_post_data_from_input(
-            input_data_obj=test_input_data,
-            available_categories=_MOCK_AVAILABLE_CATEGORIES,
-            ai_client=test_ai_client,
-            sampler=sampler_instance,
-            num_category_demos=1, # Using 1 demo for quicker test run
-            num_content_demos=1
-        )
-
-        # 5. Print results
-        print("\n--- Generated PostData ---")
-        print(f"Region: {generated_post.region}")
-        print(f"Item Name: {generated_post.item_name}")
-        print(f"Post Category: {generated_post.category}")
-        print(f"Title: {generated_post.title}")
-        print(f"Content: {generated_post.content}")
-        print("--------------------------\n")
-
-    except Exception as e:
-        print(f"An error occurred during test generation: {e}")
-        import traceback
-        traceback.print_exc()
-
-    # Test with a different region (e.g., HK)
-    sample_input_data_hk_dict = {
-        "item_category": "Fashion Accessory",
-        "discount": None,
-        "item_name": "Designer Silk Scarf - Sakura Edition",
-        "item_unit_price": 8500.00, # Example price in JPY
-        "item_unit_price_currency": "JPY",
-        "item_url": "http://example.jp/scarf-sakura",
-        "payment_method": "PayPal",
-        "site": "TokyoBoutique.jp",
-        "warehouse_id": "WH-JP-TYO-S2",
-        "warehouse_location": "Tokyo Sakura Warehouse",
-        "item_weight": "0.1 kg",
-        "region": "HK", # Target region for the post
-        "url_extracted_text": "Limited edition 100% silk scarf with beautiful sakura cherry blossom designs. Hand-rolled edges."
-    }
-    test_input_data_hk = InputData(**sample_input_data_hk_dict)
     
-    print("\nGenerating post data for an HK item (bought in JPY)...")
+    # Sample DemoData for the Sampler
+    # The sampler will use these to guide language style.
+    sample_demo_data_for_sampler: List[DemoData] = [
+        DemoData(post_id="d_us", item_category="Electronics", category="Laptops", item_name="OldLaptop Model A", item_unit_price=800, item_unit_price_currency="USD", item_url="url_us_old", site="OldTechUS", warehouse_id="WH-US-MW", warehouse_location="US-Midwest", region="US", title="Reviewing Model A", content="This is an old style US English post...", like_count=190),
+        DemoData(post_id="d_hk", item_category="Travel Gear", category="Luggage", item_name="舊款旅行篋", item_unit_price=500, item_unit_price_currency="HKD", item_url="url_hk_old", site="HKTravel", warehouse_id="WH-HK", warehouse_location="Hong Kong SAR", region="HK", title="舊款旅行篋開箱", content="呢個係舊時嘅香港廣東話風格嘅內容...", like_count=210),
+        DemoData(post_id="d_tw", item_category="Electronics", category="Laptops", item_name="舊款筆電C", item_unit_price=25000, item_unit_price_currency="TWD", item_url="url_tw_old", site="TWCompute", warehouse_id="WH-TW", warehouse_location="Taiwan Province of China", region="TW", title="筆電C評測", content="這是舊的台灣國語風格內容...", like_count=150),
+    ]
+    
+    # Instantiate mock/real clients and sampler
+    # IMPORTANT: Replace with your actual StandardOpenAIClient instantiation using your config
+    # This test assumes StandardOpenAIClient is defined above or imported correctly.
+    # You will need a config.ini for the StandardOpenAIClient to initialize.
     try:
-        generated_post_hk = generate_post_data_from_input(
-            input_data_obj=test_input_data_hk,
-            available_categories=_MOCK_AVAILABLE_CATEGORIES, # Using the same list for test
-            ai_client=test_ai_client,
-            sampler=sampler_instance,
-            num_category_demos=1,
-            num_content_demos=1
-        )
-        print("\n--- Generated PostData (HK) ---")
-        print(f"Region: {generated_post_hk.region}")
-        print(f"Item Name: {generated_post_hk.item_name}")
-        print(f"Post Category: {generated_post_hk.category}")
-        print(f"Title: {generated_post_hk.title}")
-        print(f"Content: {generated_post_hk.content}")
-        print("--------------------------\n")
+        # Create a dummy config.ini for the test if it doesn't exist
+        if not os.path.exists('config.ini'):
+            print("Creating dummy config.ini for test...")
+            dummy_config = configparser.ConfigParser()
+            dummy_config['openai'] = {'api_key': 'YOUR_DUMMY_OR_REAL_OPENAI_KEY'}
+            with open('config.ini', 'w') as configfile:
+                dummy_config.write(configfile)
+        
+        # The StandardOpenAIClient should be imported from your modules.openai_client
+        # For this __main__ block to run, ensure it's either defined above or that
+        # modules.openai_client.StandardOpenAIClient can be resolved.
+        test_ai_client = StandardOpenAIClient(config_file='config.ini') 
     except Exception as e:
-        print(f"An error occurred during HK test generation: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Could not initialize StandardOpenAIClient: {e}. Ensure config.ini is set up or mock the client.")
+        print("Exiting test.")
+        exit()
 
-    print("--- Test Run Complete ---")
+    sampler_instance = Sampler(all_demo_data=sample_demo_data_for_sampler)
+
+    print(f"\n--- Running pipeline for {len(sample_input_data_list)} items ---")
+    for test_input_obj in sample_input_data_list:
+        try:
+            generated_post = generate_post_data_from_input(
+                input_data_obj=test_input_obj,
+                available_categories=_MOCK_AVAILABLE_CATEGORIES_FOR_TEST, # Use the test list
+                ai_client=test_ai_client,
+                sampler=sampler_instance,
+                num_category_demos=1, 
+                num_content_demos=1,
+                category_model_name="gpt-4.1-mini",
+                content_model_name="gpt-4.1-mini" # Or another capable model
+            )
+
+            print("\n--- Generated PostData ---")
+            print(f"Target Region: {generated_post.region}")
+            print(f"Original Item Name: {generated_post.item_name}")
+            print(f"Predicted Post Category: {generated_post.category}")
+            print(f"Generated Title: {generated_post.title}")
+            print(f"Generated Content:\n{generated_post.content}")
+            print("--------------------------")
+
+        except Exception as e:
+            print(f"An error occurred during test generation for item '{test_input_obj.item_name}': {e}")
+            import traceback
+            traceback.print_exc()
+
+    print("\n--- Post Generator Test Run Complete ---")

@@ -1,6 +1,6 @@
 import os
 
-from modules.openai_client import AzureOpenAIClient
+from modules.openai_client import AzureOpenAIClient, StandardOpenAIClient
 from modules.csv_parser import load_categories_from_csv, parse_csv_to_input_data, parse_csv_to_demo_data
 from modules.csv_writer import write_post_data_to_csv
 from modules.executor import process_batch_input_data
@@ -43,8 +43,8 @@ def run_pipeline():
         return
 
     # 2. Initialize AI Client
-    ai_client = AzureOpenAIClient()
-    input_items = input_items[:2]
+    ai_client = StandardOpenAIClient()
+    input_items = input_items[:1]
 
     # 3. Process the batch of input data
     print(f"\nProcessing {len(input_items)} items...")
