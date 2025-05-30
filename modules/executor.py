@@ -3,13 +3,15 @@ from typing import List
 from modules.models import InputData, PostData
 from modules.azure_openai_client import OpenAIClient
 from modules.post_generator import generate_post_data_from_input
+from modules.sampler import Sampler
 
 def process_batch_input_data(
     input_data_list: List[InputData],
     available_categories: List[str],
     ai_client: OpenAIClient,
-    num_category_demos: int = 1,
-    num_content_demos: int = 1
+    sampler: Sampler,
+    num_category_demos: int = 5,
+    num_content_demos: int = 5
 ) -> List[PostData]:
     """
     Processes a list of InputData items and returns a list of PostData items.
@@ -25,6 +27,7 @@ def process_batch_input_data(
                 input_data_obj=input_item,
                 available_categories=available_categories,
                 ai_client=ai_client,
+                sampler=sampler,
                 num_category_demos=num_category_demos,
                 num_content_demos=num_content_demos
             )

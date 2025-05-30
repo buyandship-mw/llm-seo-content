@@ -3,7 +3,7 @@ from typing import Dict, List
 
 from modules.models import DemoData, InputData, PostData
 from modules.azure_openai_client import OpenAIClient
-from modules.sampler import retrieve_demos
+from modules.sampler import Sampler
 
 def format_demo_for_category_prompt(demo: DemoData) -> str:
     """Formats a DemoData object for Prompt 1 (Category Prediction) few-shot example."""
@@ -28,7 +28,6 @@ Warehouse: {demo.warehouse_location}
 Region: {demo.region}
 Original Item Price: {demo.item_unit_price} {demo.item_unit_price_currency}
 Discount: {demo.discount or "N/A"}
-Media Provided: No (Assuming 'No' for demos unless specified)
 Determined Post Category: {demo.category}"""
     expected_json_output_str = json.dumps({"title": demo.title, "content": demo.content}, indent=4)
     return f"{item_details_str}\n\nExpected JSON Output:\n```json\n{expected_json_output_str}\n```"
@@ -37,7 +36,7 @@ def predict_post_category(
     input_data: InputData,
     available_categories: List[str],
     ai_client: OpenAIClient,
-    # sampler: SamplerModule, # Removed: retrieve_demos is imported directly
+    sampler: Sampler,
     num_demos: int = 2
 ) -> str:
     """
@@ -52,7 +51,7 @@ def predict_post_category(
     formatted_available_categories = "\n".join([f'    "{cat}"' for cat in available_categories])
     
     # Call the imported/module-level retrieve_demos function
-    demos = retrieve_demos(input_data, num_examples=num_demos, for_prompt_type="category_prediction")
+    demos = sampler.retrieve_demos(input_data, num_examples=num_demos)
     formatted_demos = "\n\nEXAMPLE:\n".join([format_demo_for_category_prompt(d) for d in demos])
     if formatted_demos: formatted_demos = "EXAMPLE:\n" + formatted_demos
 
@@ -99,7 +98,7 @@ def generate_title_and_content(
     input_data: InputData,
     predicted_category: str,
     ai_client: OpenAIClient,
-    # sampler: SamplerModule, # Removed: retrieve_demos is imported directly
+    sampler: Sampler,
     num_demos: int = 2
 ) -> Dict[str, str]:
     """
@@ -119,7 +118,7 @@ IMPORTANT INSTRUCTIONS:
 10. **Respond with a JSON object containing two keys: "title" (string) and "content" (string). Ensure content is a single string, possibly with newlines (\\n).**
 """
     # Call the imported/module-level retrieve_demos function
-    demos = retrieve_demos(input_data, num_examples=num_demos, for_prompt_type="title_content_generation")
+    demos = sampler.retrieve_demos(input_data, num_examples=num_demos)
     formatted_demos = "\n\nEXAMPLE:\n".join([format_demo_for_title_content_prompt(d) for d in demos])
     if formatted_demos: formatted_demos = "EXAMPLE:\n" + formatted_demos
         
@@ -167,7 +166,7 @@ def generate_post_data_from_input(
     input_data_obj: InputData,
     available_categories: List[str],
     ai_client: OpenAIClient,
-    # sampler argument removed
+    sampler: Sampler,
     num_category_demos: int = 2,
     num_content_demos: int = 2
 ) -> PostData:
@@ -182,11 +181,11 @@ def generate_post_data_from_input(
 
     # The SamplerModule instance is no longer passed; retrieve_demos is called directly.
     llm_predicted_post_category = predict_post_category(
-        input_data_obj, available_categories, ai_client, num_demos=num_category_demos
+        input_data_obj, available_categories, ai_client, sampler, num_demos=num_category_demos
     )
     
     llm_generated_title_content = generate_title_and_content(
-        input_data_obj, llm_predicted_post_category, ai_client, num_demos=num_content_demos
+        input_data_obj, llm_predicted_post_category, ai_client, sampler, num_demos=num_content_demos
     )
     
     post_data_instance = PostData(
