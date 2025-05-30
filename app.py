@@ -1,6 +1,6 @@
 import os
 
-from modules.azure_openai_client import OpenAIClient # Assuming OpenAIClient (mock or real) is accessible
+from modules.openai_client import OpenAIClient # Assuming OpenAIClient (mock or real) is accessible
 from modules.csv_parser import load_categories_from_csv, parse_csv_to_input_data, parse_csv_to_demo_data
 from modules.csv_writer import write_post_data_to_csv
 from modules.executor import process_batch_input_data

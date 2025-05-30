@@ -1,7 +1,7 @@
 from typing import List
 
 from modules.models import InputData, PostData
-from modules.azure_openai_client import OpenAIClient
+from modules.openai_client import OpenAIClient
 from modules.post_generator import generate_post_data_from_input
 from modules.sampler import Sampler
 

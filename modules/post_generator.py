@@ -2,7 +2,7 @@ import json
 from typing import Dict, List
 
 from modules.models import DemoData, InputData, PostData
-from modules.azure_openai_client import OpenAIClient
+from modules.openai_client import OpenAIClient
 from modules.sampler import Sampler
 
 def format_demo_for_category_prompt(demo: DemoData) -> str:
