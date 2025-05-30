@@ -13,8 +13,8 @@ INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test.csv")
 DEMO_DATA_FILE = os.path.join(CURRENT_DIR, "data/demos.csv")
 OUTPUT_POST_DATA_FILE = os.path.join(CURRENT_DIR, "output.csv")
 
-NUM_CATEGORY_DEMOS = 2
-NUM_CONTENT_DEMOS = 2
+NUM_CATEGORY_DEMOS = 5
+NUM_CONTENT_DEMOS = 5
 
 def run_pipeline():
     """Main function to run the post generation pipeline."""

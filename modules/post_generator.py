@@ -37,7 +37,7 @@ def predict_post_category(
     available_categories: List[str],
     ai_client: OpenAIClient,
     sampler: Sampler,
-    num_demos: int = 2
+    num_demos: int
 ) -> str:
     """
     Generates Prompt 1 and calls the AI to predict the post category.
@@ -99,7 +99,7 @@ def generate_title_and_content(
     predicted_category: str,
     ai_client: OpenAIClient,
     sampler: Sampler,
-    num_demos: int = 2
+    num_demos: int
 ) -> Dict[str, str]:
     """
     Generates Prompt 2 and calls the AI to generate title and content.
@@ -167,8 +167,8 @@ def generate_post_data_from_input(
     available_categories: List[str],
     ai_client: OpenAIClient,
     sampler: Sampler,
-    num_category_demos: int = 2,
-    num_content_demos: int = 2
+    num_category_demos: int,
+    num_content_demos: int
 ) -> PostData:
     """
     Orchestrates the generation of a PostData object from an InputData object.

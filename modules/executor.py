@@ -10,8 +10,8 @@ def process_batch_input_data(
     available_categories: List[str],
     ai_client: OpenAIClient,
     sampler: Sampler,
-    num_category_demos: int = 5,
-    num_content_demos: int = 5
+    num_category_demos: int,
+    num_content_demos: int
 ) -> List[PostData]:
     """
     Processes a list of InputData items and returns a list of PostData items.

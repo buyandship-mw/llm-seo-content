@@ -92,6 +92,7 @@ class Sampler:
             if len(selected_demos) >= num_examples:
                 break # Reached num_examples
         
+        # print(selected_demos)
         return selected_demos
 
 # --- Example Usage (Test Block) ---
