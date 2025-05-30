@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Union
 
 # Assuming these models and clients are defined in your 'modules' directory
 from modules.models import DemoData, InputData, PostData
-from modules.openai_client import StandardOpenAIClient # Using your new client
+from modules.openai_client import OpenAIClient # Using your new client
 from modules.sampler import Sampler
 
 # --- Regional Placeholders for Demo Formatting ---
@@ -77,7 +77,7 @@ Warehouse Location (for context): {demo.warehouse_location}
 def predict_post_category(
     input_data: InputData,
     available_categories: List[str],
-    ai_client: StandardOpenAIClient,
+    ai_client: OpenAIClient,
     sampler: Sampler,
     num_demos: int,
     model_name: str = "gpt-4.1-mini"
@@ -151,7 +151,7 @@ Expected JSON Output:"""
 def generate_title_and_content(
     input_data: InputData,
     predicted_post_category: str,
-    ai_client: StandardOpenAIClient,
+    ai_client: OpenAIClient,
     sampler: Sampler,
     num_demos: int,
     model_name: str = "gpt-4.1-mini"
@@ -261,7 +261,7 @@ Expected JSON Output:"""
 def generate_post_data_from_input(
     input_data_obj: InputData,
     available_categories: List[str],
-    ai_client: StandardOpenAIClient, 
+    ai_client: OpenAIClient, 
     sampler: Sampler,
     num_category_demos: int = 1,
     num_content_demos: int = 1,
@@ -314,8 +314,8 @@ if __name__ == "__main__":
     print("--- Running Post Generator Test (BNS Expert Recommender Persona) ---")
 
     # This global is for the mock OpenAIClient if it's defined in this file for testing.
-    # If you import the actual StandardOpenAIClient, it will use its own config.
-    # Ensure your actual StandardOpenAIClient's mock or real implementation is used.
+    # If you import the actual OpenAIClient, it will use its own config.
+    # Ensure your actual OpenAIClient's mock or real implementation is used.
     _MOCK_AVAILABLE_CATEGORIES_FOR_TEST = ["Electronics & Gadgets", "Fashion & Apparel", "Home Goods", "Books", "Travel Gear"]
     
     # Sample InputData for testing
@@ -347,9 +347,9 @@ if __name__ == "__main__":
     ]
     
     # Instantiate mock/real clients and sampler
-    # IMPORTANT: Replace with your actual StandardOpenAIClient instantiation using your config
-    # This test assumes StandardOpenAIClient is defined above or imported correctly.
-    # You will need a config.ini for the StandardOpenAIClient to initialize.
+    # IMPORTANT: Replace with your actual OpenAIClient instantiation using your config
+    # This test assumes OpenAIClient is defined above or imported correctly.
+    # You will need a config.ini for the OpenAIClient to initialize.
     try:
         # Create a dummy config.ini for the test if it doesn't exist
         if not os.path.exists('config.ini'):
@@ -359,12 +359,12 @@ if __name__ == "__main__":
             with open('config.ini', 'w') as configfile:
                 dummy_config.write(configfile)
         
-        # The StandardOpenAIClient should be imported from your modules.openai_client
+        # The OpenAIClient should be imported from your modules.openai_client
         # For this __main__ block to run, ensure it's either defined above or that
-        # modules.openai_client.StandardOpenAIClient can be resolved.
-        test_ai_client = StandardOpenAIClient(config_file='config.ini') 
+        # modules.openai_client.OpenAIClient can be resolved.
+        test_ai_client = OpenAIClient(config_file='config.ini') 
     except Exception as e:
-        print(f"Could not initialize StandardOpenAIClient: {e}. Ensure config.ini is set up or mock the client.")
+        print(f"Could not initialize OpenAIClient: {e}. Ensure config.ini is set up or mock the client.")
         print("Exiting test.")
         exit()
 
