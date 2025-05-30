@@ -2,7 +2,7 @@ import json
 from typing import Dict, List
 
 from modules.models import DemoData, InputData, PostData
-from modules.openai_client import OpenAIClient
+from modules.openai_client import AzureOpenAIClient
 from modules.sampler import Sampler
 
 def format_demo_for_category_prompt(demo: DemoData) -> str:
@@ -31,7 +31,7 @@ Post Category: {demo.category}"""
 def predict_post_category(
     input_data: InputData,
     available_categories: List[str],
-    ai_client: OpenAIClient,
+    ai_client: AzureOpenAIClient,
     sampler: Sampler,
     num_demos: int
 ) -> str:
@@ -89,7 +89,7 @@ Expected JSON Output:"""
 def generate_title_and_content(
     input_data: InputData,
     predicted_category: str,
-    ai_client: OpenAIClient,
+    ai_client: AzureOpenAIClient,
     sampler: Sampler,
     num_demos: int
 ) -> Dict[str, str]:
@@ -157,7 +157,7 @@ Expected JSON Output:"""
 def generate_post_data_from_input(
     input_data_obj: InputData,
     available_categories: List[str],
-    ai_client: OpenAIClient,
+    ai_client: AzureOpenAIClient,
     sampler: Sampler,
     num_category_demos: int,
     num_content_demos: int
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     print("--- Running Post Generator Test ---")
 
     # 1. Define sample available categories (as it's now an input to the main function)
-    #    This list will also be used by the mock OpenAIClient via the global.
+    #    This list will also be used by the mock AzureOpenAIClient via the global.
     _MOCK_AVAILABLE_CATEGORIES = ["Electronics & Gadgets", "Storage Solutions", "Computer Components", "Gaming Gear", "Other"]
     
     # 2. Create sample InputData
@@ -225,8 +225,8 @@ if __name__ == "__main__":
     }
     test_input_data = InputData(**sample_input_data_dict)
 
-    # 3. Instantiate mock OpenAIClient
-    test_ai_client = OpenAIClient()
+    # 3. Instantiate mock AzureOpenAIClient
+    test_ai_client = AzureOpenAIClient()
     demo_data: List[DemoData] = [
         # US, Electronics
         DemoData(post_id="p1", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (US)", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er_us", site="TechFindsUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="My US E-Reader", content="Content US", like_count=150),

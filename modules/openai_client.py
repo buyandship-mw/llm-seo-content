@@ -62,9 +62,9 @@ class AzureOpenAIClient:
     def get_completion(
         self,
         prompt: str, # Simple string prompt
+        system_message_content: Optional[str] = "You are a helpful assistant.",
         max_tokens: Optional[int] = 1000,
-        temperature: float = 0.7,
-        system_message_content: Optional[str] = "You are a helpful assistant."
+        temperature: float = 0.7
     ) -> str:
         """
         Gets a simple text completion from the Azure OpenAI service.

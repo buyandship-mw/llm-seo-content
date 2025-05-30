@@ -1,14 +1,14 @@
 from typing import List
 
 from modules.models import InputData, PostData
-from modules.openai_client import OpenAIClient
+from modules.openai_client import AzureOpenAIClient
 from modules.post_generator import generate_post_data_from_input
 from modules.sampler import Sampler
 
 def process_batch_input_data(
     input_data_list: List[InputData],
     available_categories: List[str],
-    ai_client: OpenAIClient,
+    ai_client: AzureOpenAIClient,
     sampler: Sampler,
     num_category_demos: int,
     num_content_demos: int
