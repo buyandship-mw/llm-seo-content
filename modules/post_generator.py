@@ -7,13 +7,10 @@ from modules.sampler import Sampler
 
 def format_demo_for_category_prompt(demo: DemoData) -> str:
     """Formats a DemoData object for Prompt 1 (Category Prediction) few-shot example."""
-    item_details_str = f"""Item Details:
+    item_details_str = f"""
 Item Name: {demo.item_name}
-Item's Own Category: {demo.item_category}
-URL Extracted Text: N/A (Demo data does not include this field)
-Site: {demo.site}
-Region: {demo.region}
-Original Price: {demo.item_unit_price} {demo.item_unit_price_currency}"""
+Item Category: {demo.item_category}
+"""
     expected_json_output_str = json.dumps({"predicted_category": demo.category}, indent=4)
     return f"{item_details_str}\n\nExpected JSON Output:\n```json\n{expected_json_output_str}\n```"
 
@@ -21,14 +18,13 @@ def format_demo_for_title_content_prompt(demo: DemoData) -> str:
     """Formats a DemoData object for Prompt 2 (Title/Content Gen) few-shot example."""
     item_details_str = f"""Item Details:
 Item Name: {demo.item_name}
-Item's Own Category: {demo.item_category}
-URL Extracted Text: N/A (Demo data does not include this field)
+Item Category: {demo.item_category}
 Site: {demo.site}
 Warehouse: {demo.warehouse_location}
 Region: {demo.region}
 Original Item Price: {demo.item_unit_price} {demo.item_unit_price_currency}
 Discount: {demo.discount or "N/A"}
-Determined Post Category: {demo.category}"""
+Post Category: {demo.category}"""
     expected_json_output_str = json.dumps({"title": demo.title, "content": demo.content}, indent=4)
     return f"{item_details_str}\n\nExpected JSON Output:\n```json\n{expected_json_output_str}\n```"
 
@@ -46,7 +42,7 @@ def predict_post_category(
     
     if not available_categories:
         print("Warning: No available categories provided. Defaulting category.")
-        return "Other"
+        raise ValueError("Available categories list cannot be empty.")
 
     formatted_available_categories = "\n".join([f'    "{cat}"' for cat in available_categories])
     
@@ -71,11 +67,7 @@ Now, please categorize the following item and provide the output in the specifie
 
 Item Details:
 Item Name: {input_data.item_name}
-Item's Own Category: {input_data.item_category}
-URL Extracted Text: {input_data.url_extracted_text or "N/A"}
-Site: {input_data.site}
-Region: {input_data.region}
-Original Price: {input_data.item_unit_price} {input_data.item_unit_price_currency}
+Item Category: {input_data.item_category}
 
 Expected JSON Output:"""
 
@@ -235,6 +227,25 @@ if __name__ == "__main__":
 
     # 3. Instantiate mock OpenAIClient
     test_ai_client = OpenAIClient()
+    demo_data: List[DemoData] = [
+        # US, Electronics
+        DemoData(post_id="p1", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (US)", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er_us", site="TechFindsUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="My US E-Reader", content="Content US", like_count=150),
+        DemoData(post_id="p2", item_category="Electronics", category="Audio", item_name="Headphones Y2 (US)", item_unit_price=199.50, item_unit_price_currency="USD", item_url="url_hp_us", site="SoundGoodUS", warehouse_id="WH-USE", warehouse_location="US-East", region="US", title="US Quiet Time", content="Music US", like_count=200),
+        DemoData(post_id="p4", item_category="Electronics", category="Gadgets", item_name="Thermostat T4 (US)", item_unit_price=99.00, item_unit_price_currency="USD", item_url="url_thermo_us", site="HomeSmartUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="US Smart Home", content="Install US", like_count=180),
+        # US, Other Category
+        DemoData(post_id="p7", item_category="Home Goods", category="Kitchen", item_name="Coffee Maker (US)", item_unit_price=90.00, item_unit_price_currency="USD", item_url="url_coffee_us", site="KitchenUS", warehouse_id="WH-USC", warehouse_location="US-Central", region="US", title="US Coffee", content="Best brew US", like_count=170),
+        # EU, Fashion
+        DemoData(post_id="p3", item_category="Fashion", category="Accessories", item_name="Silk Scarf Z3 (EU)", item_unit_price=80.00, item_unit_price_currency="EUR", item_url="url_scarf_eu", site="EuroStyle", warehouse_id="WH-EU-C", warehouse_location="EU-Central", region="EU", title="EU Elegant Scarf", content="Soft EU", like_count=120),
+        # EU, Electronics
+        DemoData(post_id="p8", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (EU)", item_unit_price=139.99, item_unit_price_currency="EUR", item_url="url_er_eu", site="TechFindsEU", warehouse_id="WH-EUE", warehouse_location="EU-East", region="EU", title="My EU E-Reader", content="Content EU", like_count=160), # EU version of E-Reader
+        # CA, Books
+        DemoData(post_id="p5", item_category="Books", category="Fiction", item_name="The Great Novel N5 (CA)", item_unit_price=15.99, item_unit_price_currency="CAD", item_url="url_novel_ca", site="ReadMoreCA", warehouse_id="WH-CA-E", warehouse_location="CA-East", region="CA", title="CA Good Read", content="Page turner CA", like_count=90),
+        # CA, Electronics
+        DemoData(post_id="p6", item_category="Electronics", category="Computers", item_name="Tablet Pro (CA)", item_unit_price=499.00, item_unit_price_currency="CAD", item_url="url_tab_ca", site="CanTech", warehouse_id="WH-CA-W", warehouse_location="CA-West", region="CA", title="CA New Tablet", content="Fast CA", like_count=250),
+        # AU, Other Category (neither Electronics nor Books, for full fallback)
+        DemoData(post_id="p9", item_category="Sports", category="Outdoor", item_name="Tent Z1 (AU)", item_unit_price=299.00, item_unit_price_currency="AUD", item_url="url_tent_au", site="AusOutdoor", warehouse_id="WH-AU-S", warehouse_location="AU-Sydney", region="AU", title="AU Camping", content="Great tent AU", like_count=100),
+    ]
+    sampler_instance = Sampler(all_demo_data=demo_data)
 
     # 4. Call the main generation function
     print("\nGenerating post data for a US item...")
@@ -243,6 +254,7 @@ if __name__ == "__main__":
             input_data_obj=test_input_data,
             available_categories=_MOCK_AVAILABLE_CATEGORIES,
             ai_client=test_ai_client,
+            sampler=sampler_instance,
             num_category_demos=1, # Using 1 demo for quicker test run
             num_content_demos=1
         )
@@ -285,6 +297,7 @@ if __name__ == "__main__":
             input_data_obj=test_input_data_hk,
             available_categories=_MOCK_AVAILABLE_CATEGORIES, # Using the same list for test
             ai_client=test_ai_client,
+            sampler=sampler_instance,
             num_category_demos=1,
             num_content_demos=1
         )
