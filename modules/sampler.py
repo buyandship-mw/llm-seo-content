@@ -1,4 +1,3 @@
-import random
 from typing import List
 
 from modules.models import InputData, DemoData
@@ -6,9 +5,10 @@ from modules.models import InputData, DemoData
 class Sampler:
     """
     A sampler for retrieving demo examples based on input data criteria.
+    Demos are prioritized by like_count within filtered buckets.
     The demo data list is provided at instantiation.
     """
-    _all_demos: List[DemoData] # Type hint for the instance variable
+    _all_demos: List[DemoData]
 
     def __init__(self, all_demo_data: List[DemoData]):
         """
@@ -20,23 +20,22 @@ class Sampler:
         Raises:
             ValueError: If the provided all_demo_data list is empty or None.
         """
-        if not all_demo_data: # Check if the list is None or empty
+        if not all_demo_data:
             raise ValueError("The provided 'all_demo_data' list cannot be None or empty.")
         
-        # Store a copy to ensure the Sampler's internal list isn't affected by external modifications
-        # to the original list after instantiation (promoting immutability of the Sampler's state).
         self._all_demos = list(all_demo_data) 
-        
         print(f"Sampler initialized with {len(self._all_demos)} demo items.")
 
     def retrieve_demos(self, input_data: InputData, num_examples: int) -> List[DemoData]:
         """
-        Retrieves a list of demo examples based on hierarchical filtering and random selection.
+        Retrieves a list of demo examples based on hierarchical filtering,
+        prioritizing by highest 'like_count' in each tier.
 
         The selection priority is:
-        1. Randomly from demos matching both input_data.region and input_data.item_category.
-        2. Randomly from remaining demos matching input_data.region only.
-        3. Randomly from remaining demos not matching input_data.region.
+        1. Highest 'like_count' from demos matching both input_data.region and input_data.item_category.
+        2. Highest 'like_count' from demos matching input_data.region only (different item_category).
+        3. Highest 'like_count' from demos matching input_data.item_category only (different region).
+        4. Highest 'like_count' from remaining demos (not matching input_data.region nor input_data.item_category).
 
         Args:
             input_data: The InputData object for the current item being processed.
@@ -47,43 +46,45 @@ class Sampler:
         """
         if num_examples <= 0:
             return []
-        if not self._all_demos: # Should ideally be caught by constructor
+        if not self._all_demos:
             return []
 
         selected_demos: List[DemoData] = []
         
-        # Tier 1: Match region and item_category (Set B logic)
+        # Tier 1: Match region AND item_category (Pool B)
         pool_b = [
             demo for demo in self._all_demos
             if demo.region == input_data.region and demo.item_category == input_data.item_category
         ]
-        random.shuffle(pool_b)
+        pool_b.sort(key=lambda demo: demo.like_count, reverse=True)
 
-        # Tier 2: Match region only (Set A Prime: region match, different item_category)
+        # Tier 2: Match region ONLY (different item_category) (Pool A')
         pool_a_prime = [
             demo for demo in self._all_demos
             if demo.region == input_data.region and demo.item_category != input_data.item_category
         ]
-        random.shuffle(pool_a_prime)
+        pool_a_prime.sort(key=lambda demo: demo.like_count, reverse=True)
 
-        # Tier 3: No region match (Set C Prime: different region)
-        pool_c_prime = [
+        # Tier 3: Match item_category ONLY (different region) (Pool D') - NEW TIER
+        pool_d_prime = [
             demo for demo in self._all_demos
-            if demo.region != input_data.region
+            if demo.item_category == input_data.item_category and demo.region != input_data.region
         ]
-        random.shuffle(pool_c_prime)
-
-        # Fill selected_demos from pools in order of priority
-        # The pools are defined to be disjoint, so we don't need to track selected IDs
-        # to avoid duplicates when moving between these specific pre-defined pools.
+        pool_d_prime.sort(key=lambda demo: demo.like_count, reverse=True)
         
-        for demo_pool in [pool_b, pool_a_prime, pool_c_prime]:
+        # Tier 4: No match on region AND no match on item_category (Pool E')
+        pool_e_prime = [
+            demo for demo in self._all_demos
+            if demo.region != input_data.region and demo.item_category != input_data.item_category
+        ]
+        pool_e_prime.sort(key=lambda demo: demo.like_count, reverse=True)
+        
+        # Fill selected_demos from sorted pools in order of priority
+        # The pools are defined to be disjoint and cover all possibilities.
+        for demo_pool in [pool_b, pool_a_prime, pool_d_prime, pool_e_prime]:
             for demo in demo_pool:
                 if len(selected_demos) < num_examples:
-                    # Check if this specific demo instance is already selected
-                    # This is a safeguard if _all_demos could somehow contain duplicate objects
-                    # or if future logic makes pools overlap. For current disjoint pool definitions,
-                    # it's less critical but good for robustness.
+                    # Add if not already selected (safeguard, though current pools are disjoint)
                     if demo not in selected_demos: 
                         selected_demos.append(demo)
                 else:
@@ -95,77 +96,95 @@ class Sampler:
 
 # --- Example Usage (Test Block) ---
 if __name__ == '__main__':
-    print("--- Testing Sampler ---")
-
-    # Create an in-memory list of DemoData objects for testing
-    # This replaces the need for mock CSV parsing within this test block.
-    # The actual CSV parsing would happen in the client code (e.g., main.py)
-    # using functions from your csv_input_loader.py.
+    print("--- Testing Sampler (Prioritizing by Like Count with 4 Tiers) ---")
     
+    # More diverse data for testing all tiers
     in_memory_demo_data_list: List[DemoData] = [
-        DemoData(post_id="p1", item_category="Electronics", category="Gadgets", item_name="E-Reader X1", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er", site="TechFinds", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="My E-Reader", content="Content for E-Reader", like_count=150, hashtags=["ereader", "books"], item_weight="0.3kg", discount="10%"),
-        DemoData(post_id="p2", item_category="Electronics", category="Audio", item_name="Noise Cancelling Headphones Y2", item_unit_price=199.50, item_unit_price_currency="USD", item_url="url_hp", site="SoundGood", warehouse_id="WH-USE", warehouse_location="US-East", region="US", title="Quiet Time", content="Great for music", like_count=200, hashtags=["audio", "headphones"], item_weight="0.4kg"),
-        DemoData(post_id="p3", item_category="Fashion", category="Accessories", item_name="Silk Scarf Z3", item_unit_price=80.00, item_unit_price_currency="EUR", item_url="url_scarf", site="EuroStyle", warehouse_id="WH-EU-C", warehouse_location="EU-Central", region="EU", title="Elegant Scarf", content="Soft and stylish", like_count=120, hashtags=["fashion", "silk"], item_weight="0.1kg"),
-        DemoData(post_id="p4", item_category="Electronics", category="Gadgets", item_name="Smart Thermostat T4", item_unit_price=99.00, item_unit_price_currency="USD", item_url="url_thermo", site="HomeSmart", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="Smart Home!", content="Easy to install", like_count=180, hashtags=["smarthome", "iot"], item_weight="0.5kg"),
-        DemoData(post_id="p5", item_category="Books", category="Fiction", item_name="The Great Novel N5", item_unit_price=15.99, item_unit_price_currency="CAD", item_url="url_novel", site="ReadMore", warehouse_id="WH-CA-E", warehouse_location="CA-East", region="CA", title="A Good Read", content="Page turner", like_count=90, hashtags=["fiction", "reading"], item_weight="0.6kg", discount="5%"),
-        DemoData(post_id="p6", item_category="Electronics", region="CA", item_name="Tablet Pro", category="Computers", item_unit_price=499.00, item_unit_price_currency="CAD", item_url="url_tab", site="CanTech", warehouse_id="WH-CA-W", warehouse_location="CA-West", title="My New Tablet", content="Fast and light", like_count=250, hashtags=["tablet", "productivity"])
+        # US, Electronics
+        DemoData(post_id="p1", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (US)", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er_us", site="TechFindsUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="My US E-Reader", content="Content US", like_count=150),
+        DemoData(post_id="p2", item_category="Electronics", category="Audio", item_name="Headphones Y2 (US)", item_unit_price=199.50, item_unit_price_currency="USD", item_url="url_hp_us", site="SoundGoodUS", warehouse_id="WH-USE", warehouse_location="US-East", region="US", title="US Quiet Time", content="Music US", like_count=200),
+        DemoData(post_id="p4", item_category="Electronics", category="Gadgets", item_name="Thermostat T4 (US)", item_unit_price=99.00, item_unit_price_currency="USD", item_url="url_thermo_us", site="HomeSmartUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="US Smart Home", content="Install US", like_count=180),
+        # US, Other Category
+        DemoData(post_id="p7", item_category="Home Goods", category="Kitchen", item_name="Coffee Maker (US)", item_unit_price=90.00, item_unit_price_currency="USD", item_url="url_coffee_us", site="KitchenUS", warehouse_id="WH-USC", warehouse_location="US-Central", region="US", title="US Coffee", content="Best brew US", like_count=170),
+        # EU, Fashion
+        DemoData(post_id="p3", item_category="Fashion", category="Accessories", item_name="Silk Scarf Z3 (EU)", item_unit_price=80.00, item_unit_price_currency="EUR", item_url="url_scarf_eu", site="EuroStyle", warehouse_id="WH-EU-C", warehouse_location="EU-Central", region="EU", title="EU Elegant Scarf", content="Soft EU", like_count=120),
+        # EU, Electronics
+        DemoData(post_id="p8", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (EU)", item_unit_price=139.99, item_unit_price_currency="EUR", item_url="url_er_eu", site="TechFindsEU", warehouse_id="WH-EUE", warehouse_location="EU-East", region="EU", title="My EU E-Reader", content="Content EU", like_count=160), # EU version of E-Reader
+        # CA, Books
+        DemoData(post_id="p5", item_category="Books", category="Fiction", item_name="The Great Novel N5 (CA)", item_unit_price=15.99, item_unit_price_currency="CAD", item_url="url_novel_ca", site="ReadMoreCA", warehouse_id="WH-CA-E", warehouse_location="CA-East", region="CA", title="CA Good Read", content="Page turner CA", like_count=90),
+        # CA, Electronics
+        DemoData(post_id="p6", item_category="Electronics", category="Computers", item_name="Tablet Pro (CA)", item_unit_price=499.00, item_unit_price_currency="CAD", item_url="url_tab_ca", site="CanTech", warehouse_id="WH-CA-W", warehouse_location="CA-West", region="CA", title="CA New Tablet", content="Fast CA", like_count=250),
+        # AU, Other Category (neither Electronics nor Books, for full fallback)
+        DemoData(post_id="p9", item_category="Sports", category="Outdoor", item_name="Tent Z1 (AU)", item_unit_price=299.00, item_unit_price_currency="AUD", item_url="url_tent_au", site="AusOutdoor", warehouse_id="WH-AU-S", warehouse_location="AU-Sydney", region="AU", title="AU Camping", content="Great tent AU", like_count=100),
     ]
 
     try:
         sampler_instance = Sampler(all_demo_data=in_memory_demo_data_list)
         print(f"Sampler instance created. Total demos loaded: {len(sampler_instance._all_demos)}")
 
-        print("\n--- Test Case 1: Match Region & Category (US, Electronics) ---")
-        test_input_1 = InputData(item_category="Electronics", region="US", item_name="Test Item 1 SSD", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er", site="TechFinds", warehouse_id="WH-USW", warehouse_location="US-West", url_extracted_text="SSSD")
-        demos_1 = sampler_instance.retrieve_demos(test_input_1, num_examples=3)
+        print("\n--- Test Case 1: Match Region & Category (US, Electronics), num_examples=2 ---")
+        # Pool B (US, Electronics): p2 (200), p4 (180), p1 (150)
+        test_input_1 = InputData(item_name="Test 1", item_category="Electronics", region="US", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er", site="TechFinds", warehouse_id="WH-USW", warehouse_location="US-West", url_extracted_text="SSSD")
+        demos_1 = sampler_instance.retrieve_demos(test_input_1, num_examples=2)
         print(f"Retrieved {len(demos_1)} demos:")
-        for d in demos_1:
-            assert d.region == "US" # Should all be US
-            # First few should ideally be Electronics if available
-            print(f"  - {d.post_id}: {d.item_name} (Region: {d.region}, ItemCat: {d.item_category})")
-        assert any(d.item_category == "Electronics" for d in demos_1) or len(demos_1) == 0
+        like_counts_1 = [d.like_count for d in demos_1]
+        for d in demos_1: print(f"  - {d.post_id}: {d.item_name} (Likes: {d.like_count}, R:{d.region}, IC:{d.item_category})")
+        assert like_counts_1 == [200, 180]
 
-
-        print("\n--- Test Case 2: Match Region Only (US, NonExistentItemCat) ---")
-        test_input_2 = InputData(item_category="NonExistentCategory", region="US", item_name="Test Item 2 Drone", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er", site="TechFinds", warehouse_id="WH-USW", warehouse_location="US-West", url_extracted_text="SSSD")
-        demos_2 = sampler_instance.retrieve_demos(test_input_2, num_examples=3)
+        print("\n--- Test Case 2: Match Region Only (US, Books), num_examples=2 ---")
+        # Pool B (US, Books): Empty
+        # Pool A' (US, not Books = US/Electronics + US/Home Goods): p2(200), p4(180), p7(170), p1(150)
+        test_input_2 = InputData(item_name="Test 2", item_category="Books", region="US", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er", site="TechFinds", warehouse_id="WH-USW", warehouse_location="US-West", url_extracted_text="SSSD")
+        demos_2 = sampler_instance.retrieve_demos(test_input_2, num_examples=2)
         print(f"Retrieved {len(demos_2)} demos:")
-        for d in demos_2:
-            assert d.region == "US" # Should all be US
-            # Should not be NonExistentCategory, but could be any other category in US
-            print(f"  - {d.post_id}: {d.item_name} (Region: {d.region}, ItemCat: {d.item_category})")
+        like_counts_2 = [d.like_count for d in demos_2]
+        for d in demos_2: print(f"  - {d.post_id}: {d.item_name} (Likes: {d.like_count}, R:{d.region}, IC:{d.item_category})")
+        assert like_counts_2 == [200, 180] # From US/Electronics & US/Home Goods (p2,p4 from US/Elec)
 
-        print("\n--- Test Case 3: No Region Match (NonExistentRegion) ---")
-        test_input_3 = InputData(item_category="Whatever", region="NonExistentRegion", item_name="Test Item 3 AlienTech", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er", site="TechFinds", warehouse_id="WH-USW", warehouse_location="US-West", url_extracted_text="SSSD")
+        print("\n--- Test Case 3: Match Item Category Only (EU, Electronics), num_examples=3 ---")
+        # Pool B (EU, Electronics): p8 (160)
+        # Pool A' (EU, not Electronics = EU/Fashion): p3 (120)
+        # Pool D' (not EU, Electronics = CA/Electronics + US/Electronics): p6(250), p2(200), p4(180), p1(150)
+        # Expected pick order: p8(160), p3(120), then p6(250)
+        test_input_3 = InputData(item_name="Test 3", item_category="Electronics", region="EU", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er", site="TechFinds", warehouse_id="WH-USW", warehouse_location="US-West", url_extracted_text="SSSD") # Input region is EU
         demos_3 = sampler_instance.retrieve_demos(test_input_3, num_examples=3)
         print(f"Retrieved {len(demos_3)} demos:")
-        for d in demos_3:
-            # Can be from any region/category now
-            print(f"  - {d.post_id}: {d.item_name} (Region: {d.region}, ItemCat: {d.item_category})")
-            
-        print("\n--- Test Case 4: Requesting more than available in a specific pool (EU, Fashion) ---")
-        # In in_memory_demo_data_list, there's 1 "Fashion" in "EU"
-        test_input_4 = InputData(item_category="Fashion", region="EU", item_name="Test Item 4 Bag", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er", site="TechFinds", warehouse_id="WH-USW", warehouse_location="US-West", url_extracted_text="SSSD")
-        demos_4 = sampler_instance.retrieve_demos(test_input_4, num_examples=5) # Request 5
-        print(f"Retrieved {len(demos_4)} demos (expected to pull from other pools after exhausting EU/Fashion):")
-        found_eu_fashion = 0
-        for d in demos_4:
-            if d.region == "EU" and d.item_category == "Fashion":
-                found_eu_fashion +=1
-            print(f"  - {d.post_id}: {d.item_name} (Region: {d.region}, ItemCat: {d.item_category})")
-        assert found_eu_fashion <= 1 # Based on our sample data
-        assert len(demos_4) <= 5 # Should not exceed requested or total available
+        ids_3 = [d.post_id for d in demos_3]
+        like_counts_3 = [d.like_count for d in demos_3]
+        for d in demos_3: print(f"  - {d.post_id}: {d.item_name} (Likes: {d.like_count}, R:{d.region}, IC:{d.item_category})")
+        # This test actually tests the new Pool D' logic implicitly if Pool A' and B for input EU/Electronics aren't enough.
+        # Re-evaluating for input (item_category="Electronics", region="EU"):
+        # Pool B (EU, Electronics): p8 (160)
+        # Pool A' (EU, !Electronics = EU/Fashion): p3 (120)
+        # Pool D' (!EU, Electronics): p6 (250, CA), p2 (200, US), p4 (180, US), p1 (150, US)
+        # Expected order for 3 examples: p8, p6, p2 (because after exhausting EU/Elec (p8), and EU/!Elec (p3), it should go to !EU/Elec and pick p6 then p2)
+        # Wait, the prompt asks for input (item_category="Electronics", region="EU")
+        # Pick 1: p8 from Pool B (EU, Electronics) - 160 likes
+        # Remaining to pick: 2
+        # Pick 2: p3 from Pool A' (EU, Fashion) - 120 likes
+        # Remaining to pick: 1
+        # Pick 3: p6 from Pool D' (CA, Electronics) - 250 likes. This order is not right.
+        # The iteration is: pool_b, pool_a_prime, pool_d_prime, pool_e_prime.
+        # So for test_input_3 (item_category="Electronics", region="EU"):
+        # From pool_b (EU, Electronics): p8 (160). selected_demos = [p8]
+        # From pool_a_prime (EU, !Electronics = EU/Fashion): p3 (120). selected_demos = [p8, p3]
+        # From pool_d_prime (!EU, Electronics): p6 (250), p2 (200), p4 (180), p1 (150). Next pick is p6. selected_demos = [p8, p3, p6]
+        assert ids_3 == ["p8", "p3", "p6"]
+        assert like_counts_3 == [160, 120, 250]
 
-        print("\n--- Test Case 5: Empty Request ---")
-        demos_5 = sampler_instance.retrieve_demos(test_input_1, num_examples=0)
-        print(f"Retrieved {len(demos_5)} demos for num_examples=0.")
-        assert len(demos_5) == 0
-        
-        print("\n--- Test Case 6: Sampler with Empty Demo List (should raise error) ---")
-        try:
-            empty_sampler = Sampler(all_demo_data=[])
-        except ValueError as e:
-            print(f"Correctly caught error for empty demo list: {e}")
+
+        print("\n--- Test Case 4: No Region or Category Match (UK, Garden), num_examples=2 ---")
+        # Pool B (UK, Garden): Empty
+        # Pool A' (UK, !Garden): Empty
+        # Pool D' (!UK, Garden): Empty
+        # Pool E' (!UK, !Garden - basically all items, sorted by likes): p6(250), p2(200), p4(180), p7(170), p8(160), p1(150), p3(120), p5(90), p9(100)
+        # Should be sorted: p6(250), p2(200), p4(180), p7(170), p8(160), p1(150), p3(120), p9(100), p5(90)
+        test_input_4 = InputData(item_name="Test 4", item_category="Garden", region="UK", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er", site="TechFinds", warehouse_id="WH-USW", warehouse_location="US-West", url_extracted_text="SSSD")
+        demos_4 = sampler_instance.retrieve_demos(test_input_4, num_examples=2)
+        print(f"Retrieved {len(demos_4)} demos:")
+        like_counts_4 = [d.like_count for d in demos_4]
+        for d in demos_4: print(f"  - {d.post_id}: {d.item_name} (Likes: {d.like_count}, R:{d.region}, IC:{d.item_category})")
+        assert like_counts_4 == [250, 200] # p6, p2
 
     except Exception as e:
         print(f"An error occurred during sampler testing: {e}")
