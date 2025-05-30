@@ -16,6 +16,8 @@ except ImportError:
     class ChatCompletionMessage: pass
     class ChatCompletion: pass
     class BaseModel: pass # pydantic's BaseModel
+    class ResponseOutputMessage: pass
+    class ResponseFunctionWebSearch: pass
     print("Warning: 'openai' or 'pydantic' library not found. OpenAIClient functionality will be limited or unavailable.")
 
 class AzureOpenAIClient:
@@ -137,7 +139,7 @@ class StandardOpenAIClient:
         self.client = OpenAI(api_key=api_key)
         print("Initialized StandardOpenAIClient (using 'client.responses.create').")
 
-    def get_completion_content(
+    def get_completion(
         self,
         messages: Union[str, List[Dict[str, Any]]], # 'input' for responses.create
         model: str = "gpt-4.1-mini", # Default model, can be overridden
@@ -169,13 +171,54 @@ class StandardOpenAIClient:
             if temperature: create_params['temperature'] = temperature
 
             response = self.client.responses.create(**create_params)
-            llm_content = response.output[0].content[0].text
+            print(response)
+            # Try to extract text from ResponseOutputMessage
+            try:
+                llm_content = response.output[0].content[0].text
+            except (AttributeError, IndexError) as e:
+                # Handle the case where content or text is missing
+                llm_content = None
+
+            # If llm_content is not set, look for text in annotations
+            if not llm_content:
+                # Assuming 'response' holds the entire Response object
+                # Navigate through the nested structure
+                try:
+                    # The 'output' attribute is a list. We're interested in the ResponseOutputMessage.
+                    # In your example, it's the second item in the 'output' list.
+                    output_message = None
+                    for item in response.output:
+                        # Check if the item has a 'content' attribute and if that content
+                        # contains a ResponseOutputText object. This is a more robust way
+                        # than relying purely on index if the order or number of items in
+                        # response.output can change, as long as ResponseOutputMessage
+                        # is uniquely identifiable or is the one containing the text.
+                        # For your specific provided structure:
+                        if hasattr(item, 'content') and item.content:
+                            if hasattr(item.content[0], 'text'):
+                                output_message = item
+                                break
+                    
+                    if output_message:
+                        # The 'content' attribute of ResponseOutputMessage is a list.
+                        # The ResponseOutputText object is the first item in this list.
+                        response_output_text = output_message.content[0]
+                        
+                        # Access the 'text' attribute
+                        llm_content = response_output_text.text
+                        print(llm_content)
+                    else:
+                        print("Could not find the text field in the expected structure.")
+
+                except (AttributeError, IndexError, TypeError) as e:
+                    print(f"An error occurred while trying to extract the text: {e}")
+                    print("Please ensure the response object structure is as expected.")
 
             if llm_content is not None:
                 print("--- StandardOpenAIClient: Received content from 'responses.create' ---")
                 return llm_content.strip()
             else:
-                print(f"--- StandardOpenAIClient Error: Could not extract text content from 'responses.create' output. Response object structure might be different than expected. Response: {response_object}")
+                print(f"--- StandardOpenAIClient Error: Could not extract text content from 'responses.create' output. Response object structure might be different than expected. Response: {response}")
                 return None
 
         except AttributeError as ae:
@@ -195,16 +238,29 @@ class StandardOpenAIClient:
             import traceback
             traceback.print_exc()
             return None
+    
+    def get_completion_with_search(
+        self,
+        messages: Union[str, List[Dict[str, Any]]],
+        model: str = "gpt-4.1-mini",
+        temperature: Optional[float] = 0.2,
+    ) -> Optional[str]:
+        return self.get_completion(
+            messages=messages,
+            model=model,
+            tools=[{ "type": "web_search_preview" }],
+            temperature=temperature
+        )
 
 if __name__ == "__main__":
     try:
-        azure_client = AzureOpenAIClient()
-        response = azure_client.get_completion("What is the capital of France?")
-        print(f"Azure Response: {response}")
+        # azure_client = AzureOpenAIClient()
+        # response = azure_client.get_completion("What is the capital of France?")
+        # print(f"Azure Response: {response}")
 
         std_client = StandardOpenAIClient()
-        std_response = std_client.get_completion_content(
-            messages="What is the capital of France?"
+        std_response = std_client.get_completion_with_search(
+            messages="When is the F1 film being released?"
         )
         print(f"OpenAI Response: {std_response}")
     except Exception as e:
