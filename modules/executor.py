@@ -2,7 +2,7 @@ from typing import List
 
 from modules.models import InputData, PostData
 from modules.openai_client import AzureOpenAIClient
-from modules.post_generator import generate_post_data
+from modules.post_generator import compile_post_data
 from modules.sampler import Sampler
 
 def process_batch_input_data(
@@ -23,7 +23,7 @@ def process_batch_input_data(
     for i, input_item in enumerate(input_data_list):
         print(f"Processing item {i + 1}/{len(input_data_list)}: '{input_item.item_name}'...")
         try:
-            post_data_result = generate_post_data(
+            post_data_result = compile_post_data(
                 input_data_obj=input_item,
                 available_categories=available_categories,
                 ai_client=ai_client,

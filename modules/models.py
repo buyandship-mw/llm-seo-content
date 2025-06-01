@@ -109,6 +109,7 @@ class PostData:
     payment_method: Optional[str] = None
     item_weight: Optional[Union[float, str]] = None
     hashtags: Optional[List[str]] = field(default_factory=list)
+    product_image_url: Optional[str] = None # Add this
 
     def __post_init__(self):
         # Required string fields
