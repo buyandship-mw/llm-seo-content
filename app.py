@@ -44,7 +44,7 @@ def run_pipeline():
 
     # 2. Initialize AI Client
     ai_client = OpenAIClient()
-    input_items = input_items[:1]
+    input_items = input_items[1:5]
 
     # 3. Process the batch of input data
     print(f"\nProcessing {len(input_items)} items...")
@@ -53,8 +53,7 @@ def run_pipeline():
         available_categories=available_categories,
         ai_client=ai_client,
         sampler=sampler_instance,
-        num_category_demos=NUM_CATEGORY_DEMOS,
-        num_content_demos=NUM_CONTENT_DEMOS
+        num_category_demos=NUM_CATEGORY_DEMOS
     )
 
     # 4. Write results to an output file

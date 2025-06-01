@@ -10,8 +10,7 @@ def process_batch_input_data(
     available_categories: List[str],
     ai_client,
     sampler: Sampler,
-    num_category_demos: int,
-    num_content_demos: int
+    num_category_demos: int
 ) -> List[PostData]:
     """
     Processes a list of InputData items and returns a list of PostData items.
@@ -28,8 +27,7 @@ def process_batch_input_data(
                 available_categories=available_categories,
                 ai_client=ai_client,
                 sampler=sampler,
-                num_category_demos=num_category_demos,
-                num_content_demos=num_content_demos
+                num_category_demos=num_category_demos
             )
             all_post_data.append(post_data_result)
             print(f"Successfully processed item: '{input_item.item_name}'")
