@@ -1,11 +1,11 @@
 # modules/post_generator.py
 
 import json
-from typing import Dict, List, Optional, Union 
+from typing import Dict, List, Optional, Union, Any
 
 # Assuming these models and clients are defined in your 'modules' directory
 from modules.models import DemoData, InputData, PostData
-from modules.openai_client import OpenAIClient # Using your new client
+from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your new client
 from modules.sampler import Sampler
 
 # --- Regional Placeholders for Demo Formatting ---
@@ -45,39 +45,10 @@ Region: {demo.region}"""
     expected_json_output_str = json.dumps({"predicted_category": demo.category}, indent=4, ensure_ascii=False)
     return f"{item_details_str}\n\nExpected JSON Output:\n```json\n{expected_json_output_str}\n```"
 
-def format_demo_for_title_content_prompt(demo: DemoData) -> str:
-    item_details_str = f"""Input Item Example (for context and style guidance):
-Name: {demo.item_name}
-Item's Own Category: {demo.item_category}
-Region for Post Style: {demo.region}
-Warehouse Location (for context): {demo.warehouse_location}
-(Note: For this example, web search would typically be performed for '{demo.item_name}' to generate the detailed content below, but here we use placeholders to demonstrate regional language style and structure.)"""
-
-    placeholders = REGIONAL_PLACEHOLDERS.get(demo.region.upper(), REGIONAL_PLACEHOLDERS["EN"]) 
-    
-    # Use warehouse_location directly in the placeholder string if needed
-    example_content_str = f"""## {placeholders['recommendation_intro'].replace('[Product Name]', demo.item_name)}
-{placeholders['recommendation_body']}
-
-## {placeholders['reviews_intro']}
-{placeholders['reviews_body']}
-
-## {placeholders['bns_intro'].replace('[Product Name]', demo.item_name).replace('{warehouse_location}', demo.warehouse_location or "the origin warehouse")}
-{placeholders['bns_body']}"""
-
-    expected_json_output_str = json.dumps({
-        "title": demo.item_name, 
-        "content": example_content_str
-    }, indent=4, ensure_ascii=False)
-
-    return f"{item_details_str}\n\nExpected JSON Output Example (illustrating structure and language style for region '{demo.region}'):\n```json\n{expected_json_output_str}\n```"
-
-# --- Core Prompting Functions ---
-
 def predict_post_category(
     input_data: InputData,
     available_categories: List[str],
-    ai_client: OpenAIClient,
+    ai_client,
     sampler: Sampler,
     num_demos: int,
     model_name: str = "gpt-4.1-mini"
@@ -119,7 +90,6 @@ Expected JSON Output:"""
         {"role": "user", "content": user_prompt_content}
     ]
     
-    # Using get_completion as this task does not require web search
     raw_json_string = ai_client.get_completion( 
         model=model_name, 
         messages=messages
@@ -130,28 +100,55 @@ Expected JSON Output:"""
         return available_categories[0] if available_categories else "Other"
         
     try:
-        clean_json_string = raw_json_string.strip()
-        if clean_json_string.startswith("```json"):
-            clean_json_string = clean_json_string[len("```json"):].strip()
-        if clean_json_string.endswith("```"):
-            clean_json_string = clean_json_string[:-len("```")].strip()
+        category_data = extract_and_parse_json(raw_json_string)
         
-        category_data = json.loads(clean_json_string)
+        if not isinstance(category_data, dict):
+            print(f"Error: Parsed JSON for category is not a dictionary for '{input_data.item_name}'. Raw response: '{raw_json_string}'. Defaulting.")
+            return available_categories[0] if available_categories else "Other"
+
         predicted_cat = category_data.get("predicted_category")
 
-        if not predicted_cat or predicted_cat not in available_categories:
-            print(f"Warning: LLM predicted category '{predicted_cat}' is invalid or not in available list. Raw: '{raw_json_string}'. Defaulting.")
+        if not predicted_cat or not isinstance(predicted_cat, str) or predicted_cat not in available_categories:
+            print(f"Warning: LLM predicted category '{predicted_cat}' is invalid, not a string, or not in available list. Raw response: '{raw_json_string}'. Defaulting.")
             return available_categories[0] if available_categories else "Other"
         return predicted_cat
-    except (json.JSONDecodeError, KeyError, TypeError) as e:
+    except json.JSONDecodeError as e:
         print(f"Error parsing category JSON response for '{input_data.item_name}': {e}\nRaw response was: '{raw_json_string}'. Defaulting.")
         return available_categories[0] if available_categories else "Other"
+    except TypeError as e: # Catch other type-related issues after parsing
+        print(f"Type error processing parsed category JSON for '{input_data.item_name}': {e}\nRaw response was: '{raw_json_string}'. Defaulting.")
+        return available_categories[0] if available_categories else "Other"
 
+def format_demo_for_title_content_prompt(demo: DemoData) -> str:
+    item_details_str = f"""Input Item Example (for context and style guidance):
+Name: {demo.item_name}
+Item's Own Category: {demo.item_category}
+Region for Post Style: {demo.region}
+Warehouse Location (for context): {demo.warehouse_location}
+(Note: For this example, web search would typically be performed for '{demo.item_name}' to generate the detailed content below, but here we use placeholders to demonstrate regional language style and structure.)"""
+
+    placeholders = REGIONAL_PLACEHOLDERS.get(demo.region.upper(), REGIONAL_PLACEHOLDERS["EN"]) 
+    
+    example_content_str = f"""## {placeholders['recommendation_intro'].replace('[Product Name]', demo.item_name)}
+{placeholders['recommendation_body']}
+
+## {placeholders['reviews_intro']}
+{placeholders['reviews_body']}
+
+## {placeholders['bns_intro'].replace('[Product Name]', demo.item_name).replace('{warehouse_location}', demo.warehouse_location or "the origin warehouse")}
+{placeholders['bns_body']}"""
+
+    expected_json_output_str = json.dumps({
+        "title": demo.item_name, 
+        "content": example_content_str
+    }, indent=4, ensure_ascii=False)
+
+    return f"{item_details_str}\n\nExpected JSON Output Example (illustrating structure and language style for region '{demo.region}'):\n```json\n{expected_json_output_str}\n```"
 
 def generate_title_and_content(
     input_data: InputData,
     predicted_post_category: str,
-    ai_client: OpenAIClient,
+    ai_client,
     sampler: Sampler,
     num_demos: int,
     model_name: str = "gpt-4.1-mini"
@@ -215,7 +212,7 @@ Expected JSON Output:"""
             
     messages_for_llm.append({"role": "user", "content": user_content_payload})
 
-    raw_json_string = ai_client.get_completion_with_search(
+    raw_json_string = ai_client.get_completion(
         model=model_name,
         messages=messages_for_llm
     )
@@ -230,35 +227,42 @@ Expected JSON Output:"""
         return default_error_response
         
     try:
-        clean_json_string = raw_json_string.strip()
-        if clean_json_string.startswith("```json"):
-            clean_json_string = clean_json_string[len("```json"):].strip()
-        if clean_json_string.endswith("```"):
-            clean_json_string = clean_json_string[:-len("```")].strip()
-
-        parsed_data = json.loads(clean_json_string)
+        parsed_data = extract_and_parse_json(raw_json_string)
         
-        final_title = parsed_data.get("title", "").strip()
-        final_content = parsed_data.get("content", "").strip()
+        if not isinstance(parsed_data, dict):
+            print(f"Error: Parsed JSON for title/content is not a dictionary for '{input_data.item_name}'. Raw response: '{raw_json_string}'.")
+            return default_error_response
 
-        if not final_title:
-            print(f"Warning: LLM generated an empty title for '{input_data.item_name}'. Using item name as fallback.")
-            final_title = input_data.item_name 
-        if not final_content or "## Discover" not in final_content: 
-            print(f"Warning: LLM generated empty or improperly structured content for '{input_data.item_name}'. Raw: '{raw_json_string}'")
-            if not final_content: final_content = "Error: LLM generated empty content."
-            # Return the potentially problematic content along with the title, or fallback to default_error_response entirely
-            # For now, returning what we got, even if partially malformed.
-            # A more robust error handling might return default_error_response here.
+        final_title_raw = parsed_data.get("title")
+        final_content_raw = parsed_data.get("content")
+
+        if isinstance(final_title_raw, str):
+            final_title = final_title_raw.strip()
+        else:
+            print(f"Warning: 'title' from LLM is not a string for '{input_data.item_name}'. Got: {type(final_title_raw)}. Using item name as fallback. Raw response: '{raw_json_string}'.")
+            final_title = input_data.item_name # Fallback before potential strip error
+
+        if isinstance(final_content_raw, str):
+            final_content = final_content_raw.strip()
+        else:
+            print(f"Warning: 'content' from LLM is not a string for '{input_data.item_name}'. Got: {type(final_content_raw)}. Using error content. Raw response: '{raw_json_string}'.")
+            final_content = "Error: LLM generated non-string content." # Fallback before potential strip error
+            
+        if not final_title: # Check after stripping and potential fallback
+            print(f"Warning: LLM generated an empty title for '{input_data.item_name}' (or title was non-string). Using item name as fallback.")
+            final_title = input_data.item_name
 
         return {"title": final_title, "content": final_content}
 
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-        print(f"Error parsing or validating title/content JSON for '{input_data.item_name}': {e}\nRaw response was: '{raw_json_string}'.")
+    except json.JSONDecodeError as e:
+        print(f"Error parsing title/content JSON for '{input_data.item_name}': {e}\nRaw response was: '{raw_json_string}'.")
+        return default_error_response
+    except TypeError as e: # Catch other type-related issues after parsing (e.g. if parsed_data has unexpected structure)
+        print(f"Type error processing parsed title/content JSON for '{input_data.item_name}': {e}\nRaw response was: '{raw_json_string}'.")
         return default_error_response
 
 
-def generate_post_data_from_input(
+def generate_post_data(
     input_data_obj: InputData,
     available_categories: List[str],
     ai_client: OpenAIClient, 
@@ -347,21 +351,7 @@ if __name__ == "__main__":
     ]
     
     # Instantiate mock/real clients and sampler
-    # IMPORTANT: Replace with your actual OpenAIClient instantiation using your config
-    # This test assumes OpenAIClient is defined above or imported correctly.
-    # You will need a config.ini for the OpenAIClient to initialize.
     try:
-        # Create a dummy config.ini for the test if it doesn't exist
-        if not os.path.exists('config.ini'):
-            print("Creating dummy config.ini for test...")
-            dummy_config = configparser.ConfigParser()
-            dummy_config['openai'] = {'api_key': 'YOUR_DUMMY_OR_REAL_OPENAI_KEY'}
-            with open('config.ini', 'w') as configfile:
-                dummy_config.write(configfile)
-        
-        # The OpenAIClient should be imported from your modules.openai_client
-        # For this __main__ block to run, ensure it's either defined above or that
-        # modules.openai_client.OpenAIClient can be resolved.
         test_ai_client = OpenAIClient(config_file='config.ini') 
     except Exception as e:
         print(f"Could not initialize OpenAIClient: {e}. Ensure config.ini is set up or mock the client.")
@@ -373,7 +363,7 @@ if __name__ == "__main__":
     print(f"\n--- Running pipeline for {len(sample_input_data_list)} items ---")
     for test_input_obj in sample_input_data_list:
         try:
-            generated_post = generate_post_data_from_input(
+            generated_post = generate_post_data(
                 input_data_obj=test_input_obj,
                 available_categories=_MOCK_AVAILABLE_CATEGORIES_FOR_TEST, # Use the test list
                 ai_client=test_ai_client,

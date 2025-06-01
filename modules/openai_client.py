@@ -1,4 +1,5 @@
 import os
+import json
 import configparser
 from typing import List, Dict, Any, Optional, Union
 
@@ -256,6 +257,37 @@ class OpenAIClient:
             temperature=temperature,
             tools=[{ "type": "web_search_preview" }]
         )
+
+def extract_and_parse_json(raw_response_text: Optional[str]) -> Any:
+    """
+    Cleans a raw string response presumed to contain JSON, removing common
+    markdown code fences, and then parses it into a Python object.
+
+    Args:
+        raw_response_text: The raw string response from an external source (e.g., LLM).
+                           Can be None or empty.
+
+    Returns:
+        The parsed JSON object (e.g., dict, list).
+
+    Raises:
+        json.JSONDecodeError: If the string cannot be parsed into JSON after cleaning,
+                              or if the input string (or cleaned string) is empty.
+    """
+    if not raw_response_text:
+        raise json.JSONDecodeError("Input response string is empty or None.", raw_response_text or "", 0)
+
+    clean_json_string = raw_response_text.strip()
+    
+    if clean_json_string.startswith("```json"):
+        clean_json_string = clean_json_string[len("```json"):].strip()
+    if clean_json_string.endswith("```"):
+        clean_json_string = clean_json_string[:-len("```")].strip()
+    
+    if not clean_json_string: # If after stripping markdown, the string is empty
+        raise json.JSONDecodeError("Cleaned JSON string is empty.", raw_response_text, 0)
+        
+    return json.loads(clean_json_string)
 
 if __name__ == "__main__":
     try:
