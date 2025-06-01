@@ -170,10 +170,10 @@ Your task is to:
 3.  **Follow the structure, tone, language, and style of the provided EXAMPLE POST** to generate a new post for the NEW item.
 4.  Specifically:
     a.  Generate a `title` for the NEW item that matches the style of the example title, translated appropriately for the region, and incorporating the NEW item's name.
-    b.  Generate Markdown `content` for the NEW item. This content must have three sections, with H2 Markdown headings styled like the example.
+    b.  Generate `content` for the NEW item. This content must have three sections, with headings styled like the example.
         - The content for each section (Product Intro, User Reviews, Why BNS) must be about the NEW item, based on your web search.
-        - Ensure mobile-first readability (short paragraphs, scannability, Markdown bullet points for lists).
-5.  Your entire response MUST be a single, valid JSON object with exactly three keys: "title" (string for the NEW item), "product_image_url" (string for the NEW item, or `null` if not found), and "content" (string with Markdown for the NEW item).
+        - Ensure mobile-first readability (short paragraphs, scannability, bullet points for lists).
+5.  Your entire response MUST be a single, valid JSON object with exactly three keys: "title", "content", and "product_image_url" (or `null` if not found).
 """
 
     user_prompt_for_item = f"""Here is the MASTER EXAMPLE POST for region '{input_data.region}'.
