@@ -17,21 +17,20 @@ MASTER_POST_EXAMPLES = {
     "HK": {
         "item_name": "【尋寶區】日本 Fujifilm Instax Mini 12 即影即有相機 (Lilac Purple 紫色)",
         "warehouse_location": "Ibaraki",
-        "title": "日本 Fujifilm Instax Mini 12 (Lilac Purple 紫色)",
+        "title": "📸 Fujifilm Instax Mini 12（Lilac Purple 紫色）",
         "content":
 """
-📸 Fujifilm Instax Mini 12（Lilac Purple 紫色）
 - 得意設計＋超易用
 - 自動曝光，唔使調光
 - 自拍模式＋自拍鏡
 - 約 5 秒即印，即影即分享
 - 紫色款，打卡又靚又有型
 
-💬 用家評價
+用家評價
 👍 易用、靚設計，新手啱用
 ⚠️ 強光下會過曝，要小心使用
 
-🚚 點解經 BNS 買？
+點解經 BNS 買？
 📦 按實重收費，運費清晰
 🧳 免費合倉，慳運費
 📍 實時追蹤＋彈性派送
@@ -168,8 +167,9 @@ Your task is to:
 1.  Thoroughly analyze the NEW item details provided below.
 2.  **Search the internet to gather fresh and relevant information** about this NEW item (features, benefits, user reviews) and to **find a publicly accessible URL for a high-quality product image of the NEW item**.
 3.  **Follow the structure, tone, language, and style of the provided EXAMPLE POST** to generate a new post for the NEW item.
+4.  Before proceeding below, ensure the item name is translated to the target region's language if necessary.
 4.  Specifically:
-    a.  Generate a `title` for the NEW item that matches the style of the example title, translated appropriately for the region, and incorporating the NEW item's name.
+    a.  Generate a `title` for the NEW item that matches the style of the example title and incorporates the NEW item's name.
     b.  Generate `content` for the NEW item. This content must have three sections, with headings styled like the example.
         - The content for each section (Product Intro, User Reviews, Why BNS) must be about the NEW item, based on your web search.
         - Ensure mobile-first readability (short paragraphs, scannability, bullet points for lists).
