@@ -6,13 +6,13 @@ from modules.models import InputData, PostData
 from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your client
 
 # --- Module Constants ---
-MASTER_POST_EXAMPLES: Dict[str, Dict[str, str]] = {
-    "HK": {
+MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
+    "HK": [{
         "item_url": "https://www.target.com/p/fujifilm-instax-mini-12-camera/-/A-88743864",
         "item_name": "Fujifilm Instax Mini 12 Camera",
         "warehouse_id": "warehouse-4px-uspdx",
-        "title": "📸 Fujifilm Instax Mini 12",
-        "content":
+        "post_title": "📸 Fujifilm Instax Mini 12",
+        "post_content":
             """
 - 得意設計＋超易用
 - 自動曝光，唔使調光
@@ -23,9 +23,24 @@ MASTER_POST_EXAMPLES: Dict[str, Dict[str, str]] = {
 用家評價
 👍 易用、靚設計，新手啱用
 ⚠️ 強光下會過曝，要小心使用
-            """,
-        "image_url": "https://target.scene7.com/is/image/Target/GUEST_69b0f1ed-9a10-4559-891b-de4e55043419"
-    }
+            """
+    }, {
+        "item_url": "https://www.gourmandise.jp/view/item/000000009318",
+        "item_name": "Chiikawa 完全無線立體聲耳機",
+        "warehouse_id": "warehouse-qs-osaka",
+        "post_title": "🎧 Chiikawa 完全無線立體聲耳機",
+        "post_content":
+            """
+- 可愛嘅 Chiikawa 角色設計
+- 耳塞式設計，確保音質清晰
+- 支援藍牙連接，8米內無線播放音樂
+- 耳機上嘅觸控開關，方便操作
+
+用家評價
+👍 可愛嘅設計，音質清晰，連接穩定
+⚠️ 連續使用時間較短，需要經常充電
+            """
+    }]
 }
 
 DEFAULT_FALLBACK_IMAGE_URL = "https://example.com/default_item_image.png"
@@ -68,7 +83,8 @@ def _build_comprehensive_llm_prompt(
         "You are an expert e-commerce data processor and content creator. "
         "Your goal is to analyze client-provided data, search the item_url "
         "for missing details or verifications, make specified predictions from lists, "
-        "and generate post content. Output everything in a single, specific JSON structure."
+        "and generate post content. All generated textual content should be appropriate for the target region specified. " # Added subtle hint
+        "Output everything in a single, specific JSON structure."
     )
     prompt_lines.append("\n--- REQUIRED JSON OUTPUT STRUCTURE ---")
     prompt_lines.append(
@@ -76,14 +92,14 @@ def _build_comprehensive_llm_prompt(
         "and value types (use null for optional string fields if no relevant information is found, "
         "unless specified otherwise, ensure price is a float and currency a 3-letter code):\n"
         "{\n"
-        '  "item_name": "string",\n'
+        '  "item_name": "string", // Should be in the primary language of the target post region\n' # Added comment
         '  "image_url": "string_url | null",\n'
         '  "post_category": "string_chosen_from_provided_list",\n'
         '  "warehouse_id": "string_chosen_from_provided_list_or_clients_value",\n'
         '  "item_currency": "string_3_letter_code_as_found_on_site",\n'
         '  "item_price_in_item_currency": "float_as_found_on_site",\n'
-        '  "post_title": "string",\n'
-        '  "post_content": "string_plain_text_no_markdown"\n'
+        '  "post_title": "string", // Should be in the primary language of the target post region\n' # Added comment
+        '  "post_content": "string_plain_text_no_markdown" // Should be in the primary language of the target post region\n' # Added comment
         "}"
     )
     prompt_lines.append("\n--- CLIENT-PROVIDED DATA & INSTRUCTIONS ---")
@@ -95,7 +111,7 @@ def _build_comprehensive_llm_prompt(
     if client_input.item_name:
         prompt_lines.append(f"- Use '{client_input.item_name}' for the 'item_name' field in your JSON output.")
     else:
-        prompt_lines.append(f"- Determine the item's name from '{client_input.item_url}' and place it in the 'item_name' field.")
+        prompt_lines.append(f"- Determine the item's name from '{client_input.item_url}'. If not already, translate this name to English. Place the result in the 'item_name' field.")
 
     # image_url
     if client_input.image_url:
@@ -141,20 +157,43 @@ def _build_comprehensive_llm_prompt(
         )
     
     # post_title & post_content
-    master_example_for_region = MASTER_POST_EXAMPLES.get(client_input.region.upper())
-    if not master_example_for_region: # Fallback to first defined example or a generic one
-        raise NotImplementedError(f"Warning: No master example for region '{client_input.region}'.")
+    master_examples_list_for_region = MASTER_POST_EXAMPLES.get(client_input.region.upper())
+    if not master_examples_list_for_region: # Check if the list is None or empty
+        raise NotImplementedError(
+            f"CRITICAL PROMPT WARNING: No master examples found for region '{client_input.region}'. "
+            "ICL for title/content will not be effective."
+        )
+    else:
+        # Convert the list of example dictionaries into a JSON string.
+        # This will result in a JSON array of objects.
+        master_examples_json_str = json.dumps(master_examples_list_for_region, ensure_ascii=False, indent=2)
+        
+        # Update language guidance to refer to plural examples
+        language_guidance = (
+            f"Generate the 'post_title' and 'post_content' directly in the primary language "
+            f"of the target region ('{client_input.region}'), matching the language style, tone, "
+            f"and structure demonstrated in the provided master examples."
+        )
 
-    master_example_json_str = json.dumps(master_example_for_region, ensure_ascii=False, indent=2)
     prompt_lines.append(
-        "\n--- CONTENT GENERATION ---"
-        f"\nBased on all information (client-provided and your findings from web search), generate 'post_title' (string) and 'post_content' (string, plain text, NO MARKDOWN formatting)."
+        "\n--- CONTENT GENERATION (TITLE & CONTENT) ---" # Updated section title for clarity
+        f"\nBased on all information (client-provided and your findings from web search), "
+        "generate 'post_title' (string) and 'post_content' (string, plain text, NO MARKDOWN formatting)."
     )
     prompt_lines.append(
-        f"The style, tone, and structure should be guided by the master example below for the {client_input.region} region. "
-        f"The title and content should both be in the same language as the master example. "
-        f"The post content should have two sections: 1. product intro, 2. user reviews summary. "
-        f"Here is the master example for stylistic reference:\n{master_example_json_str}"
+        # Updated wording to refer to "examples" (plural)
+        f"The style, tone, and structure for 'post_title' and 'post_content' should be closely guided by the master examples "
+        f"provided below for the {client_input.region} region. "
+        f"{language_guidance} " # language_guidance already refers to plural examples
+        f"The 'post_content' should generally have two main sections based on your web search: "
+        "1. a product introduction (highlighting key features/benefits), and "
+        "2. a brief summary of user reviews or public sentiment."
+    )
+    prompt_lines.append(
+        # Updated introductory phrase for the examples
+        f"Here are some master examples for your reference. Learn from their structure, "
+        f"item details they choose to highlight, and how they phrase the title and content sections:\n"
+        f"{master_examples_json_str}"
     )
 
     return "\n\n".join(prompt_lines)
@@ -337,7 +376,6 @@ def generate_post(
         available_bns_categories,
         valid_warehouse_ids_for_prompt
     )
-    print(f"DEBUG: Generated LLM prompt:\n{user_prompt}")
 
     llm_response_dict = _invoke_comprehensive_llm(user_prompt, ai_client, model)
 
@@ -379,7 +417,7 @@ if __name__ == '__main__':
     # Dummy data for testing
     client_input = InputData(
         region="HK",
-        item_url="https://amzn.asia/d/huuhXMs",
+        item_url="https://www.lush.com/uk/en/p/wasabi-shan-kui-shampoo?queryId=a9d530215c36459b66438cd919d05285",
         # item_name="Doshisha Super Gorilla Calf Care",
         # post_category="sports",
         # warehouse_id="warehouse-qs-osaka",
