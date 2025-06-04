@@ -1,4 +1,4 @@
-from typing import Optional, List, Union, TextIO
+from typing import Optional, List, Tuple, Union, TextIO
 import csv
 
 from modules.models import InputData
@@ -20,6 +20,26 @@ def load_categories_from_csv(filepath: str) -> List[str]:
         print(f"An error occurred while loading categories from '{filepath}': {e}")
         raise # Or return empty list / handle as appropriate
     return categories
+
+def load_warehouses_from_csv(filepath: str) -> List[Tuple[str,str]]:
+    """Loads warehouses from a CSV file with two columns: 'warehouse_id' and 'region'."""
+    warehouses: List[Tuple[str, str]] = []
+    try:
+        with open(filepath, 'r', encoding='utf-8', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                warehouse_id = row.get('warehouse_id', '').strip()
+                region = row.get('currency', '').strip()
+                if warehouse_id and region:
+                    warehouses.append((warehouse_id, region))
+        print(f"Successfully loaded {len(warehouses)} warehouses from '{filepath}'.")
+    except FileNotFoundError:
+        print(f"Error: Warehouses file '{filepath}' not found.")
+        raise # Or return empty list / handle as appropriate
+    except Exception as e:
+        print(f"An error occurred while loading warehouses from '{filepath}': {e}")
+        raise # Or return empty list / handle as appropriate
+    return warehouses
 
 def parse_csv_to_input_data(file_input: Union[str, TextIO]) -> List[InputData]:
     """
