@@ -1,25 +1,19 @@
 # modules/post_generator.py
-
 import json
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Any, Tuple
 
-# Assuming these models and clients are defined in your 'modules' directory
-from modules.models import DemoData, InputData, PostData
+from modules.models import InputData, PostData
 from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your client
-from modules.sampler import Sampler
 
-# --- Master Post Examples ---
-# Craft one high-quality example post for each region.
-# The LLM will use this as a strong guide for structure, tone, and style.
-
-# Just HK region for now
-MASTER_POST_EXAMPLES = {
+# --- Module Constants ---
+MASTER_POST_EXAMPLES: Dict[str, Dict[str, str]] = {
     "HK": {
-        "item_name": "【尋寶區】日本 Fujifilm Instax Mini 12 即影即有相機 (Lilac Purple 紫色)",
-        "warehouse_location": "Ibaraki",
-        "title": "📸 Fujifilm Instax Mini 12（Lilac Purple 紫色）",
+        "item_url": "https://www.target.com/p/fujifilm-instax-mini-12-camera/-/A-88743864",
+        "item_name": "Fujifilm Instax Mini 12 Camera",
+        "warehouse_id": "warehouse-4px-uspdx",
+        "title": "📸 Fujifilm Instax Mini 12",
         "content":
-"""
+            """
 - 得意設計＋超易用
 - 自動曝光，唔使調光
 - 自拍模式＋自拍鏡
@@ -29,390 +23,406 @@ MASTER_POST_EXAMPLES = {
 用家評價
 👍 易用、靚設計，新手啱用
 ⚠️ 強光下會過曝，要小心使用
-
-點解經 BNS 買？
-📦 按實重收費，運費清晰
-🧳 免費合倉，慳運費
-📍 實時追蹤＋彈性派送
-
-🛍️ 即刻經 BNS 落單，將呢部靚相機帶返屋企，影低每個開心moment！
-""",
-        "product_image_url": "http://example.com/images/sample_product_hk.jpg"
+            """,
+        "image_url": "https://target.scene7.com/is/image/Target/GUEST_69b0f1ed-9a10-4559-891b-de4e55043419"
     }
 }
 
-def format_demo_for_category_prompt(demo: DemoData) -> str:
-    # This function remains unchanged as it's for category prediction examples.
-    item_details_str = f"""Item Details:
-Item Name: {demo.item_name}
-Item's Own Category: {demo.item_category}
-"""
-    expected_json_output_str = json.dumps({"predicted_category": demo.category}, indent=4, ensure_ascii=False)
-    return f"{item_details_str}\n\nExpected JSON Output:\n```json\n{expected_json_output_str}\n```"
+DEFAULT_FALLBACK_IMAGE_URL = "https://example.com/default_item_image.png"
 
-def predict_post_category(
-    input_data: InputData,
-    available_categories: List[str],
-    ai_client: OpenAIClient,
-    sampler: Optional[Sampler], # Sampler is now optional for this module overall
-    num_demos: int,
-    model_name: str = "gpt-4.1-mini"
+# --- Internal Helper Functions ---
+
+def _get_conversion_rate(
+    from_currency: str,
+    to_currency: str,
+    rates_table: Dict[str, Dict[str, float]]
+) -> Optional[float]:
+    """Helper to get conversion rate from the provided table."""
+    from_currency = from_currency.upper()
+    to_currency = to_currency.upper()
+
+    if from_currency == to_currency:
+        return 1.0
+    if from_currency in rates_table and to_currency in rates_table[from_currency]:
+        return rates_table[from_currency][to_currency]
+    
+    # Try inverse if direct not found (e.g., table has USD:EUR but we need EUR:USD)
+    if to_currency in rates_table and from_currency in rates_table[to_currency]:
+        inverse_rate = rates_table[to_currency][from_currency]
+        if inverse_rate != 0: # Avoid division by zero
+            return 1.0 / inverse_rate
+            
+    print(f"Warning: Conversion rate from {from_currency} to {to_currency} not found in table.")
+    return None
+
+
+def _build_comprehensive_llm_prompt(
+    client_input: InputData,
+    available_bns_categories: List[str],
+    valid_warehouse_ids_for_mcq: List[str] # Just the IDs for the prompt
 ) -> str:
-    if not available_categories:
-        print("Error: No available categories provided for prediction.")
-        raise ValueError("The 'available_categories' list cannot be empty.")
+    prompt_lines = []
+
+    # 1. Role Definition & Overall Goal
+    prompt_lines.append(
+        "You are an expert e-commerce data processor and content creator. "
+        "Your goal is to analyze client-provided data, search the item_url "
+        "for missing details or verifications, make specified predictions from lists, "
+        "and generate post content. Output everything in a single, specific JSON structure."
+    )
+    prompt_lines.append("\n--- REQUIRED JSON OUTPUT STRUCTURE ---")
+    prompt_lines.append(
+        "Your entire response MUST be a single JSON object with the following exact keys "
+        "and value types (use null for optional string fields if no relevant information is found, "
+        "unless specified otherwise, ensure price is a float and currency a 3-letter code):\n"
+        "{\n"
+        '  "item_name": "string",\n'
+        '  "image_url": "string_url | null",\n'
+        '  "post_category": "string_chosen_from_provided_list",\n'
+        '  "warehouse_id": "string_chosen_from_provided_list_or_clients_value",\n'
+        '  "item_currency": "string_3_letter_code_as_found_on_site",\n'
+        '  "item_price_in_item_currency": "float_as_found_on_site",\n'
+        '  "post_title": "string",\n'
+        '  "post_content": "string_plain_text_no_markdown"\n'
+        "}"
+    )
+    prompt_lines.append("\n--- CLIENT-PROVIDED DATA & INSTRUCTIONS ---")
+    prompt_lines.append(f"Item URL to analyze: {client_input.item_url}")
+    prompt_lines.append(f"Target region for the post style: {client_input.region}")
+
+    # Field-specific instructions
+    # item_name
+    if client_input.item_name:
+        prompt_lines.append(f"- Use '{client_input.item_name}' for the 'item_name' field in your JSON output.")
+    else:
+        prompt_lines.append(f"- Determine the item's name from '{client_input.item_url}' and place it in the 'item_name' field.")
+
+    # image_url
+    if client_input.image_url:
+        prompt_lines.append(f"- Use '{client_input.image_url}' for the 'image_url' field in your JSON output.")
+    else:
+        prompt_lines.append(
+            f"- Perform a web search for the item at the provided item_url and find the best image URL. "
+            "Place this definitive URL in the 'image_url' field. If no suitable image is found, use null."
+        )
+
+    # warehouse_id (MCQ)
+    if client_input.warehouse_id:
+        prompt_lines.append(f"- Use '{client_input.warehouse_id}' for the 'warehouse_id' field in your JSON output.")
+    else:
+        prompt_lines.append(
+            f"- Determine the primary country this item is sold from via web search on {client_input.item_url}."
+        )
+        prompt_lines.append(
+            f"- Then, from the following list of valid warehouse IDs: {valid_warehouse_ids_for_mcq}, select the one whose country is the same as or geographically closest to the country the item is sold from. Place your choice in the 'warehouse_id' field."
+        )
+
+    # post_category (MCQ)
+    if client_input.post_category:
+        prompt_lines.append(f"- Use '{client_input.post_category}' for the 'post_category' field in your JSON output.")
+    else:
+        prompt_lines.append(
+            f"- From the following list of valid BNS Post Categories: {available_bns_categories}, select the single most appropriate category for the item based on all its details. Place your choice in the 'post_category' field."
+        )
+
+    # item_currency & item_price_in_item_currency
+    if client_input.item_price is not None and client_input.item_currency:
+        client_curr_for_prompt = client_input.item_currency.upper()
+        prompt_lines.append(
+            f"- Client provided price: {client_input.item_price} {client_curr_for_prompt}. "
+            f"Place the numeric price ({client_input.item_price}) as a float in 'item_price_in_item_currency' and the 3-letter currency code in 'item_currency'."
+        )
+    else:
+        prompt_lines.append(
+            f"- Determine the item's price from '{client_input.item_url}'. Extract the numeric price value and its currency. "
+            "Convert the currency to its standard three-letter code (e.g., USD, EUR, JPY). "
+            "Place the numeric price as a float in 'item_price_in_item_currency' and the 3-letter currency code in 'item_currency'. "
+            "If price is not found, use 0.0 for price and 'N/A' for currency."
+        )
     
-    # This function can still use the sampler if DemoData for categories exists.
-    system_prompt_1 = """You are an expert AI assistant specializing in e-commerce. Your task is to analyze item details and select the single most appropriate category for a community post about this item from the given list. Respond strictly in the specified JSON format: {"predicted_category": "Chosen Category Name"}."""
+    # post_title & post_content
+    master_example_for_region = MASTER_POST_EXAMPLES.get(client_input.region.upper())
+    if not master_example_for_region: # Fallback to first defined example or a generic one
+        raise NotImplementedError(f"Warning: No master example for region '{client_input.region}'.")
 
-    formatted_available_categories = "[\n" + ",\n".join([f'    "{cat}"' for cat in available_categories]) + "\n]"
-    
-    formatted_demos_str = ""
-    if sampler and num_demos > 0:
-        demos = sampler.retrieve_demos(input_data, num_examples=num_demos)
-        if demos:
-            formatted_demos_str = "\n\n---\nEXAMPLE:\n".join([format_demo_for_category_prompt(d) for d in demos])
-            formatted_demos_str = "EXAMPLE:\n" + formatted_demos_str
-    
-    user_prompt_content = f"""Analyze the item details below and select the MOST appropriate post category from the "Available Post Categories" list.
-
-Available Post Categories:
-{formatted_available_categories}
-
-{formatted_demos_str if formatted_demos_str else "No examples provided for category context."}
-
----
-Item to categorize:
-
-Item Name: {input_data.item_name}
-Item's Own Category: {input_data.item_category}
-URL Extracted Text: {input_data.url_extracted_text or "N/A"}
-
-Based on these details, what is the single most appropriate post category?
-Respond strictly with a JSON object: {{"predicted_category": "<selected post category>"}}
-
-Expected JSON Output:"""
-
-    messages = [
-        {"role": "system", "content": system_prompt_1},
-        {"role": "user", "content": user_prompt_content}
-    ]
-    
-    raw_json_string = ai_client.get_completion( 
-        model=model_name, 
-        messages=messages
+    master_example_json_str = json.dumps(master_example_for_region, ensure_ascii=False, indent=2)
+    prompt_lines.append(
+        "\n--- CONTENT GENERATION ---"
+        f"\nBased on all information (client-provided and your findings from web search), generate 'post_title' (string) and 'post_content' (string, plain text, NO MARKDOWN formatting)."
+    )
+    prompt_lines.append(
+        f"The style, tone, and structure should be guided by the master example below for the {client_input.region} region. "
+        f"The title and content should both be in the same language as the master example. "
+        f"The post content should have two sections: 1. product intro, 2. user reviews summary. "
+        f"Here is the master example for stylistic reference:\n{master_example_json_str}"
     )
 
-    default_category = available_categories[0] if available_categories else "Other"
+    return "\n\n".join(prompt_lines)
 
-    if not raw_json_string:
-        print(f"Error: No response from AI for category prediction of '{input_data.item_name}'. Defaulting to '{default_category}'.")
-        return default_category
-        
-    try:
-        category_data = extract_and_parse_json(raw_json_string)
-        
-        if not isinstance(category_data, dict):
-            print(f"Error: Parsed JSON for category is not a dictionary for '{input_data.item_name}'. Raw response: '{raw_json_string}'. Defaulting to '{default_category}'.")
-            return default_category
-
-        predicted_cat = category_data.get("predicted_category")
-
-        if not predicted_cat or not isinstance(predicted_cat, str) or (available_categories and predicted_cat not in available_categories):
-            if available_categories:
-                 print(f"Warning: LLM predicted category '{predicted_cat}' is invalid, not a string, or not in available list. Raw response: '{raw_json_string}'. Defaulting to '{default_category}'.")
-            else:
-                 print(f"Warning: LLM predicted category '{predicted_cat}' is invalid or not a string. Raw response: '{raw_json_string}'. Defaulting to '{default_category}'.")
-            return default_category
-        return predicted_cat
-    except json.JSONDecodeError as e:
-        print(f"Error parsing category JSON response for '{input_data.item_name}': {e}\nRaw response was: '{raw_json_string}'. Defaulting to '{default_category}'.")
-        return default_category
-    except TypeError as e: 
-        print(f"Type error processing parsed category JSON for '{input_data.item_name}': {e}\nRaw response was: '{raw_json_string}'. Defaulting to '{default_category}'.")
-        return default_category
-
-def generate_post_body(
-    input_data: InputData,
-    predicted_post_category: str, # For context, if LLM needs it
+def _invoke_comprehensive_llm(
+    user_prompt: str,
     ai_client: OpenAIClient,
-    model_name: str = "gpt-4.1-mini" # Or your preferred model like gpt-4-turbo
+    model: str
+) -> Optional[Dict[str, Any]]:
+    messages = [{"role": "user", "content": user_prompt}]
+    raw_response_str = ai_client.get_completion_with_search(model=model, messages=messages)
+
+    if raw_response_str:
+        parsed_json = extract_and_parse_json(raw_response_str)
+        print(f"DEBUG: Raw LLM response: {parsed_json}")
+        if isinstance(parsed_json, dict):
+            # Validate that all required keys are present in LLM response
+            required_keys = [
+                "item_name", "image_url", "post_category", "warehouse_id",
+                "item_currency", "item_price_in_item_currency",
+                "post_title", "post_content"
+            ]
+            missing_keys = [key for key in required_keys if key not in parsed_json]
+            if missing_keys:
+                print(f"Warning: LLM response missing required keys: {missing_keys}. Raw: {raw_response_str}")
+            return parsed_json
+        else:
+            print(f"Warning: LLM response was not a valid JSON dictionary. Raw: {raw_response_str}")
+    return None
+
+def _finalize_data_from_llm_response(
+    llm_output: Dict[str, Any],
+    original_client_input: InputData,
+    available_bns_categories: List[str],
+    valid_warehouses: List[Tuple[str, str]], # Full list with (id, currency_code)
+    currency_conversion_rates: Dict[str, Dict[str, float]]
 ) -> Dict[str, Any]:
+    final_data = {}
+
+    # --- Populate with defaults first, to ensure all keys exist ---
+    # These are for PostData object, which has more fields than LLM output
+    final_data["item_name"] = "Item Name Unavailable"
+    final_data["image_url"] = DEFAULT_FALLBACK_IMAGE_URL
+    final_data["post_category"] = available_bns_categories[0] if available_bns_categories else "General"
+    final_data["warehouse_id"] = (valid_warehouses[0][0] if valid_warehouses else "UNKNOWN_WAREHOUSE")
+    # Price/Currency will be determined below based on warehouse
+    final_data["item_price"] = 0.0
+    final_data["item_currency"] = "N/A" # This will be warehouse currency
+    final_data["post_title"] = "Title Generation Failed"
+    final_data["post_content"] = "Content Generation Failed. Please check item URL."
+
+    # Optional fields from client input, passed through
+    final_data["discount"] = original_client_input.discount
+    final_data["item_category"] = original_client_input.item_category
+    final_data["item_weight"] = original_client_input.item_weight
+    final_data["payment_method"] = original_client_input.payment_method
+    final_data["site"] = original_client_input.site
+
+    # --- Apply LLM output and client overrides ---
+
+    # 1. item_name
+    if original_client_input.item_name:
+        final_data["item_name"] = original_client_input.item_name
+    elif llm_output.get("item_name"):
+        final_data["item_name"] = str(llm_output.get("item_name"))
+
+    # 2. image_url (Prefer LLM's finding)
+    if llm_output.get("image_url"):
+        final_data["image_url"] = str(llm_output.get("image_url"))
+    elif original_client_input.image_url: # Fallback to client's if LLM provides none
+        final_data["image_url"] = original_client_input.image_url
+    # else it keeps DEFAULT_FALLBACK_IMAGE_URL
+
+    # 3. warehouse_id & target_warehouse_currency
+    valid_warehouse_ids_only = [wh[0] for wh in valid_warehouses]
+    target_warehouse_currency = "N/A"
+
+    if original_client_input.warehouse_id and original_client_input.warehouse_id in valid_warehouse_ids_only:
+        final_data["warehouse_id"] = original_client_input.warehouse_id
+    elif "warehouse_id" in llm_output and llm_output["warehouse_id"] in valid_warehouse_ids_only:
+        final_data["warehouse_id"] = str(llm_output["warehouse_id"])
+    elif valid_warehouse_ids_only: # Default to first valid if others fail
+        print(f"Warning: Client/LLM warehouse_id invalid or missing. Defaulting from valid list.")
+        final_data["warehouse_id"] = valid_warehouse_ids_only[0]
+    # else it keeps "UNKNOWN_WAREHOUSE" (or previous default)
+
+    # Find currency for the chosen warehouse_id
+    for wh_id, wh_curr in valid_warehouses:
+        if wh_id == final_data["warehouse_id"]:
+            target_warehouse_currency = wh_curr.upper()
+            break
     
-    region_key = input_data.region.upper()
-    master_example = MASTER_POST_EXAMPLES.get(region_key)
-    if not master_example:
-        print(f"Warning: No master example found for region '{input_data.region}'. Using EN example as fallback.")
-        master_example = MASTER_POST_EXAMPLES.get("EN")
-        if not master_example: # Should not happen if EN is defined
-             print(f"Critical Error: Default EN master example not found. Cannot generate post body.")
-             return {
-                "title": f"{input_data.item_name} - Content Generation Error",
-                "product_image_url": None,
-                "content": "Error: Master example configuration missing."
-            }
+    if target_warehouse_currency == "N/A" and valid_warehouses: # Should ideally not happen if warehouse_id is from list
+        target_warehouse_currency = valid_warehouses[0][1].upper()
+        print(f"Warning: Could not determine target warehouse currency reliably, defaulting to {target_warehouse_currency}")
 
-    example_json_str = json.dumps({
-        "item_name": master_example["item_name"],
-        "warehouse_location": master_example["warehouse_location"],
-        "title": master_example["title"],
-        "content": master_example["content"],
-        "product_image_url": master_example["product_image_url"]
-    }, indent=4, ensure_ascii=False)
 
-    system_prompt_content = f"""You are an Expert Recommender and Content Curator for BNS, a global package forwarding service. Your primary goal is to create informative, appealing, and mobile-first marketplace-style posts.
+    # 4. post_category
+    if original_client_input.post_category and original_client_input.post_category in available_bns_categories:
+        final_data["post_category"] = original_client_input.post_category
+    elif "post_category" in llm_output and llm_output["post_category"] in available_bns_categories:
+        final_data["post_category"] = str(llm_output["post_category"])
+    elif available_bns_categories: # Default to first valid if others fail
+        print(f"Warning: Client/LLM post_category invalid or missing. Defaulting from valid list.")
+        final_data["post_category"] = available_bns_categories[0]
+    # else it keeps "General" (or previous default)
 
-You will be provided with an EXAMPLE POST for the target region: '{input_data.region}'.
-Your task is to:
-1.  Thoroughly analyze the NEW item details provided below.
-2.  **Search the internet to gather fresh and relevant information** about this NEW item (features, benefits, user reviews) and to **find a publicly accessible URL for a high-quality product image of the NEW item**.
-3.  **Follow the structure, tone, language, and style of the provided EXAMPLE POST** to generate a new post for the NEW item.
-4.  Before proceeding below, ensure the item name is translated to the target region's language if necessary.
-4.  Specifically:
-    a.  Generate a `title` for the NEW item that matches the style of the example title and incorporates the NEW item's name.
-    b.  Generate `content` for the NEW item. This content must have three sections, with headings styled like the example.
-        - The content for each section (Product Intro, User Reviews, Why BNS) must be about the NEW item, based on your web search.
-        - Ensure mobile-first readability (short paragraphs, scannability, bullet points for lists).
-5.  Your entire response MUST be a single, valid JSON object with exactly three keys: "title", "content", and "product_image_url" (or `null` if not found).
-"""
+    # 5. Determine source_price and source_currency (from LLM or client)
+    llm_price_val = llm_output.get("item_price_in_item_currency")
+    llm_currency_val = llm_output.get("item_currency")
 
-    user_prompt_for_item = f"""Here is the MASTER EXAMPLE POST for region '{input_data.region}'.
-Use this example as a template for structure, tone, and style.
-The content within this example (features, review details, etc.) is illustrative for its own placeholder item.
-You must generate NEW content specific to the 'Item Details for Processing' provided below, based on your web search for THAT item.
+    source_price: Optional[float] = None
+    source_currency: Optional[str] = None # This is currency AS FOUND ON SITE
 
-MASTER EXAMPLE POST (Region: {input_data.region}):
-```json
-{example_json_str}
-```
+    if original_client_input.item_price is not None and original_client_input.item_currency:
+        source_price = original_client_input.item_price
+        source_currency = original_client_input.item_currency.upper()
+        if not (isinstance(source_currency, str) and len(source_currency) == 3):
+            print(f"Warning: Client provided currency '{source_currency}' not valid 3-letter code. Price conversion may fail.")
+            source_currency = None # Invalidate if not 3-letter
+    elif isinstance(llm_price_val, (float, int)) and \
+         isinstance(llm_currency_val, str) and len(llm_currency_val) == 3:
+        source_price = float(llm_price_val)
+        source_currency = llm_currency_val.upper()
+    else:
+        print(f"Warning: Valid source price/currency not found from client or LLM. LLM provided price: '{llm_price_val}', currency: '{llm_currency_val}'.")
 
----
-Now, generate the expert recommender post for the following NEW item.
-Remember to:
-- **Search the internet comprehensively** for the NEW item: '{input_data.item_name}'.
-- **Strictly follow the JSON output format** and the structure/style of the master example.
-- **Replace placeholders** like '{{{{ITEM_NAME}}}}' and '{{{{WAREHOUSE_LOCATION}}}}' in your generated content with the NEW item's specific details.
-- **Tailor all text** (title, headers, body) to the NEW item, in the language and style of the region '{input_data.region}'.
+    # 6. Perform Price Conversion to target_warehouse_currency
+    final_item_price_converted = 0.0 # Default price
+    final_item_currency_for_post = target_warehouse_currency if target_warehouse_currency != "N/A" else "N/A"
 
-Item Details for Processing (NEW ITEM):
-- Product Name: {input_data.item_name}
-- Item's Own Category (for context): {input_data.item_category}
-- Item URL (for context and as a search starting point): {input_data.item_url}
-- URL Extracted Text (initial info, if available): {input_data.url_extracted_text or 'N/A'}
-- Image URL (from input, for visual context if model is vision-capable, if available): {input_data.image_url or 'N/A'}
-- Target Region for this Post: {input_data.region}
-- BNS Warehouse Location (Origin for "Why BNS" section): {input_data.warehouse_location}
-- Discount (if any, mention if significant): {input_data.discount or 'N/A'}
-- Post Category (overall BNS post category): {predicted_post_category}
+    if source_price is not None and source_currency and target_warehouse_currency not in ["N/A", None]:
+        if source_currency == target_warehouse_currency:
+            final_item_price_converted = source_price
+        else:
+            rate = _get_conversion_rate(source_currency, target_warehouse_currency, currency_conversion_rates)
+            if rate is not None:
+                final_item_price_converted = round(source_price * rate, 2)
+            else: # Conversion rate not found
+                print(f"Warning: Conversion failed from {source_currency} to {target_warehouse_currency}. Using original price if possible, or 0.0.")
+                # If conversion fails, use original price and original currency IF that currency is globally acceptable
+                # For now, sticking to the rule: price MUST be in warehouse currency. If conversion fails, it's 0.0.
+                # A different business rule might be to use original price/currency if conversion fails.
+                final_item_price_converted = 0.0
+                # final_item_currency_for_post remains target_warehouse_currency (or N/A if target was N/A)
+    elif source_price is not None and source_currency : # No valid target_warehouse_currency or conversion failed.
+        print(f"Warning: Target warehouse currency is '{target_warehouse_currency}'. Using 0.0 as price in target currency as conversion not possible/meaningful.")
+        final_item_price_converted = 0.0 # Price in target currency cannot be determined
+        # final_item_currency_for_post remains target_warehouse_currency
+    # else source price itself is unknown, so price remains 0.0
 
-Expected JSON Output (for the NEW ITEM '{input_data.item_name}'):"""
-    
-    messages_for_llm = [{"role": "system", "content": system_prompt_content}]
-    
-    user_content_payload: Union[str, List[Dict[str, Any]]] = user_prompt_for_item
-    if input_data.image_url and (input_data.image_url.startswith("http://") or input_data.image_url.startswith("https://")):
-        current_user_content_list = [{"type": "text", "text": user_prompt_for_item}]
-        current_user_content_list.append({"type": "image_url", "image_url": {"url": input_data.image_url, "detail": "auto"}})
-        user_content_payload = current_user_content_list
-        print(f"Info: Sending image URL {input_data.image_url} to vision-capable model for item '{input_data.item_name}'.")
-    
-    messages_for_llm.append({"role": "user", "content": user_content_payload})
+    final_data["item_price"] = final_item_price_converted
+    final_data["item_currency"] = final_item_currency_for_post
 
-    raw_json_string = ai_client.get_completion_with_search(
-        model=model_name,
-        messages=messages_for_llm
+
+    # 7. post_title & post_content from LLM
+    if llm_output.get("post_title"):
+        final_data["post_title"] = str(llm_output.get("post_title"))
+    if llm_output.get("post_content"): # Ensure plain text
+        final_data["post_content"] = str(llm_output.get("post_content"))
+
+    return final_data
+
+
+# --- Public API Function ---
+def generate_post(
+    client_input: InputData,
+    available_bns_categories: List[str],
+    valid_warehouses: List[Tuple[str, str]],
+    currency_conversion_rates: Dict[str, Dict[str, float]],
+    ai_client: OpenAIClient,
+    model: str
+) -> PostData:
+    print(f"INFO: Starting post generation for URL: {client_input.item_url}, Region: {client_input.region}")
+
+    valid_warehouse_ids_for_prompt = [wh[0] for wh in valid_warehouses]
+
+    user_prompt = _build_comprehensive_llm_prompt(
+        client_input,
+        available_bns_categories,
+        valid_warehouse_ids_for_prompt
+    )
+    print(f"DEBUG: Generated LLM prompt:\n{user_prompt}")
+
+    llm_response_dict = _invoke_comprehensive_llm(user_prompt, ai_client, model)
+
+    if llm_response_dict:
+        finalized_data_dict = _finalize_data_from_llm_response(
+            llm_response_dict,
+            client_input,
+            available_bns_categories,
+            valid_warehouses,
+            currency_conversion_rates
+        )
+        
+        # Ensure all required fields for PostData have non-None, type-correct values
+        # The _finalize_data_from_llm_response should already set defaults.
+        return PostData(
+            region=client_input.region,
+            item_url=client_input.item_url,
+            item_name=str(finalized_data_dict.get("item_name", "Default Item Name")),
+            image_url=str(finalized_data_dict.get("image_url", DEFAULT_FALLBACK_IMAGE_URL)),
+            post_category=str(finalized_data_dict.get("post_category", "General")),
+            warehouse_id=str(finalized_data_dict.get("warehouse_id", "UNKNOWN_WAREHOUSE")),
+            item_currency=str(finalized_data_dict.get("item_currency", "N/A")),
+            item_price=float(finalized_data_dict.get("item_price", 0.0)),
+            post_title=str(finalized_data_dict.get("post_title", "Default Title")),
+            post_content=str(finalized_data_dict.get("post_content", "Default Content.")),
+            discount=finalized_data_dict.get("discount"),
+            item_category=finalized_data_dict.get("item_category"),
+            item_weight=finalized_data_dict.get("item_weight"),
+            payment_method=finalized_data_dict.get("payment_method"),
+            site=finalized_data_dict.get("site")
+        )
+    else:
+        raise RuntimeError("ERROR: LLM response was invalid or call failed.")
+
+if __name__ == '__main__':
+    # --- Example Usage ---
+    print("--- Post Generator Example ---")
+
+    # Dummy data for testing
+    client_input = InputData(
+        region="HK",
+        item_url="https://amzn.asia/d/huuhXMs",
+        # item_name="Doshisha Super Gorilla Calf Care",
+        # post_category="sports",
+        # warehouse_id="warehouse-qs-osaka",
+        # item_currency="JPY",
+        # item_price=6578,
+        # discount=None,
+        # item_category="Accessories",
+        # item_weight=1,
+        # payment_method=None,
+        # site="hk"
     )
 
-    default_error_response = {
-        "title": f"{input_data.item_name} - Content Generation Error",
-        "product_image_url": None,
-        "content": f"## Error: Content Generation Failed\nDetails unavailable for {input_data.item_name}.\n\n## Error\nUser review summary unavailable.\n\n## Error\nBNS benefits for item from {input_data.warehouse_location} could not be generated."
+    available_cats = ["sports", "healthcare", "fashion", "home", "recipe",
+                     "diy", "art", "stationery", "entertainment", "vehicle",
+                     "electronics", "baby-care", "music", "photography",
+                     "beauty", "pet"]
+    
+    # warehouse_id, warehouse_currency_code
+    warehouses = [
+        ("warehouse-4px-uspdx", "USD"),
+        ("warehouse-bnsca-toronto", "CAD"),
+        ("warehouse-bnsuk-ashford", "GBP"),
+        ("warehouse-bnsit-milan", "EUR"),
+        ("warehouse-qs-osaka", "JPY"),
+        ("warehouse-kas-seoul", "KRW"),
+        ("warehouse-lht-dongguan", "CNY"),
+        ("warehouse-bnstw-taipei", "TWD"),
+        ("warehouse-bnsau-sydney", "AUD"),
+        ("warehouse-bnsth-bangkok", "THB")
+    ]
+
+    # Simplified conversion rates
+    rates = {
+        "USD": {"GBP": 0.80, "EUR": 0.92, "HKD": 7.80, "USD": 1.0},
+        "GBP": {"USD": 1.25, "EUR": 1.15, "HKD": 9.75, "GBP": 1.0},
+        "EUR": {"USD": 1.08, "GBP": 0.87, "HKD": 8.45, "EUR": 1.0},
+        "HKD": {"USD": 0.13, "GBP": 0.10, "EUR": 0.12, "HKD": 1.0},
+        "JPY": {"USD": 0.007, "GBP": 0.0056, "EUR": 0.0065, "JPY": 1.0},
     }
 
-    if not raw_json_string:
-        print(f"Error: No response from AI for post body generation of '{input_data.item_name}'.")
-        return default_error_response
-        
-    try:
-        parsed_data = extract_and_parse_json(raw_json_string)
-        
-        if not isinstance(parsed_data, dict):
-            print(f"Error: Parsed JSON for post body is not a dictionary for '{input_data.item_name}'. Raw: '{raw_json_string}'.")
-            return default_error_response
+    stub_ai_client = OpenAIClient()
 
-        final_title_raw = parsed_data.get("title")
-        final_content_raw = parsed_data.get("content")
-        product_image_url_raw = parsed_data.get("product_image_url")
-
-        if isinstance(final_title_raw, str) and final_title_raw.strip():
-            final_title = final_title_raw.strip()
-        else:
-            print(f"Warning: 'title' from LLM is invalid or empty for '{input_data.item_name}'. Using item name. Raw: '{raw_json_string}'.")
-            final_title = input_data.item_name
-
-        if isinstance(final_content_raw, str) and final_content_raw.strip():
-            final_content = final_content_raw.strip()
-        else:
-            print(f"Warning: 'content' from LLM is invalid or empty for '{input_data.item_name}'. Using error content. Raw: '{raw_json_string}'.")
-            final_content = f"## Content Error for {final_title}\nCould not generate product details.\n\n## User Feedback Error\nCould not generate user feedback summary.\n\n## BNS Information Error\nCould not generate BNS advantages."
-        
-        product_image_url: Optional[str] = None
-        if isinstance(product_image_url_raw, str) and product_image_url_raw.strip():
-            if product_image_url_raw.startswith("http://") or product_image_url_raw.startswith("https://"):
-                product_image_url = product_image_url_raw
-            else:
-                print(f"Warning: 'product_image_url' ('{product_image_url_raw}') is not valid URL. Setting to None. Raw: '{raw_json_string}'.")
-        elif product_image_url_raw is not None:
-            print(f"Warning: 'product_image_url' is not string or null. Setting to None. Raw: '{raw_json_string}'.")
-
-        return {"title": final_title, "content": final_content, "product_image_url": product_image_url}
-
-    except json.JSONDecodeError as e:
-        print(f"Error parsing post body JSON for '{input_data.item_name}': {e}\nRaw: '{raw_json_string}'.")
-        return default_error_response
-    except Exception as e: 
-        print(f"Unexpected error processing post body JSON for '{input_data.item_name}': {e}\nRaw: '{raw_json_string}'.")
-        return default_error_response
-
-
-def compile_post_data(
-    input_data_obj: InputData,
-    available_categories: List[str],
-    ai_client: OpenAIClient, 
-    sampler: Optional[Sampler], # Sampler is now optional, primarily for category prediction
-    num_category_demos: int = 1, # For category prediction
-    # num_content_demos is removed as it's not used by generate_post_body anymore
-    category_model_name: str = "gpt-4.1-mini",
-    content_model_name: str = "gpt-4.1-mini" # Recommend a strong model for this task
-) -> PostData:
-    print(f"\n--- Compiling Post Data for: {input_data_obj.item_name} (Region: {input_data_obj.region}) ---")
-
-    llm_predicted_post_category = predict_post_category(
-        input_data_obj, available_categories, ai_client, sampler, 
-        num_demos=num_category_demos, model_name=category_model_name
-    )
-    print(f"Predicted Post Category for '{input_data_obj.item_name}': {llm_predicted_post_category}")
-    
-    post_body_elements = generate_post_body( # No sampler or num_demos here
-        input_data_obj, 
-        llm_predicted_post_category, 
-        ai_client, 
-        model_name=content_model_name
-    )
-    generated_title = post_body_elements.get("title")
-    generated_content = post_body_elements.get("content")
-    generated_image_url = post_body_elements.get("product_image_url")
-
-    print(f"Generated Title for '{input_data_obj.item_name}': {generated_title}")
-    if generated_image_url:
-        print(f"Generated Product Image URL: {generated_image_url}")
-    else:
-        print(f"No Product Image URL generated for '{input_data_obj.item_name}'.")
-    
-    post_data_instance = PostData(
-        item_category=input_data_obj.item_category,
-        category=llm_predicted_post_category,
-        item_name=input_data_obj.item_name, 
-        item_unit_price=input_data_obj.item_unit_price,
-        item_unit_price_currency=input_data_obj.item_unit_price_currency,
-        item_url=input_data_obj.item_url,
-        site=input_data_obj.site,
-        warehouse_id=input_data_obj.warehouse_id,
-        warehouse_location=input_data_obj.warehouse_location,
-        region=input_data_obj.region,
-        title=generated_title,
-        content=generated_content,
-        product_image_url=generated_image_url,
-        discount=input_data_obj.discount,
-        payment_method=input_data_obj.payment_method,
-        item_weight=input_data_obj.item_weight,
-    )
-    
-    return post_data_instance
-
-# --- Test Execution Block ---
-if __name__ == "__main__":
-    print("--- Running Post Generator Test (Single Master Example Strategy) ---")
-
-    _MOCK_AVAILABLE_CATEGORIES_FOR_TEST = ["Electronics & Gadgets", "Fashion & Apparel", "Home Goods", "Books", "Travel Gear", "Beauty & Health", "Other"]
-    
-    sample_input_data_list = [
-        InputData(**{
-            "item_category": "Electronics", "discount": "10%", "item_name": "NovaBook Pro 15 Laptop (2024)",
-            "item_unit_price": 1299.99, "item_unit_price_currency": "USD", "item_url": "http://example.com/novabookpro",
-            "payment_method": "Visa", "site": "TechSprout.com", "warehouse_id": "WH-US-W",
-            "warehouse_location": "US-West Coast Hub", "item_weight": "1.8 kg", "region": "US",
-            "url_extracted_text": "The latest NovaBook Pro 15 features the new M3X chip, a stunning liquid retina display, and up to 20 hours of battery life. Perfect for professionals on the go.",
-            "image_url": "http://example.com/images/novabook.jpg" 
-        }),
-        InputData(**{
-            "item_category": "Travel Accessory", "discount": None, "item_name": "SkySailor Carry-On Suitcase",
-            "item_unit_price": 150.00, "item_unit_price_currency": "EUR", "item_url": "http://example.com/skysailor",
-            "payment_method": "PayPal", "site": "EuroTravelGoods.com", "warehouse_id": "WH-EU-FR",
-            "warehouse_location": "Paris Logistics Center (France)", "item_weight": "2.5 kg", "region": "HK", # Test HK
-            "url_extracted_text": "Ultra-lightweight and durable carry-on, compliant with most airlines. Features 360-degree spinner wheels and a built-in TSA lock.",
-            "image_url": None
-        }),
-         InputData(**{
-            "item_category": "Beauty", "discount": "5%", "item_name": "Sakura Bloom Face Cream",
-            "item_unit_price": 750.00, "item_unit_price_currency": "TWD", "item_url": "http://example.com/sakuracream",
-            "payment_method": "Credit Card", "site": "TWBeautyFinds.com", "warehouse_id": "WH-TW",
-            "warehouse_location": "Taoyuan Logistics (Taiwan)", "item_weight": "0.2 kg", "region": "TW", # Test TW
-            "url_extracted_text": "Rich moisturizing cream with sakura extract for radiant skin. Suitable for all skin types.",
-            "image_url": "https://example.com/images/sakura_face_cream.jpg"
-        }),
-    ]
-    
-    # Sampler is now only needed if predict_post_category uses demos.
-    # If predict_post_category also moves to zero-shot or a different example strategy,
-    # sampler_instance might become None or not initialized.
-    # For now, we assume it might still be used for category prediction demos.
-    sample_demo_data_for_category_sampler: List[DemoData] = [
-        DemoData(post_id="cat_demo1", item_category="Electronics", category="Laptops", item_name="Demo Laptop", region="US", item_unit_price=0, item_unit_price_currency="", item_url="", site="", warehouse_id="", warehouse_location="", title="", content="", like_count=0),
-        DemoData(post_id="cat_demo2", item_category="Travel", category="Luggage", item_name="Demo Suitcase", region="HK",item_unit_price=0, item_unit_price_currency="", item_url="", site="", warehouse_id="", warehouse_location="", title="", content="", like_count=0),
-    ]
-    
-    try:
-        test_ai_client = OpenAIClient(config_file='config.ini') 
-    except Exception as e:
-        print(f"Could not initialize OpenAIClient: {e}. Ensure config.ini is set up or mock client.")
-        exit()
-
-    # Initialize sampler if you have demo data for category prediction
-    # If not, sampler_instance can be None, and predict_post_category should handle it.
-    category_sampler_instance: Optional[Sampler] = None
-    if sample_demo_data_for_category_sampler:
-        category_sampler_instance = Sampler(all_demo_data=sample_demo_data_for_category_sampler)
-    else:
-        print("Info: No demo data provided for category sampler. Category prediction will be zero-shot or rely on general model knowledge.")
-
-
-    print(f"\n--- Running pipeline for {len(sample_input_data_list)} items ---")
-    for test_input_obj in sample_input_data_list:
-        try:
-            generated_post_obj = compile_post_data(
-                input_data_obj=test_input_obj,
-                available_categories=_MOCK_AVAILABLE_CATEGORIES_FOR_TEST,
-                ai_client=test_ai_client,
-                sampler=category_sampler_instance, # Pass sampler for category prediction
-                num_category_demos=1 if category_sampler_instance else 0, 
-                # num_content_demos is removed
-                category_model_name="gpt-4.1-mini", 
-                content_model_name="gpt-4.1-mini"
-            )
-
-            print("\n--- Generated PostData ---")
-            print(f"Target Region: {generated_post_obj.region}")
-            print(f"Original Item Name: {generated_post_obj.item_name}")
-            print(f"Predicted Post Category: {generated_post_obj.category}")
-            print(f"Generated Title: {generated_post_obj.title}")
-            print(f"Generated Product Image URL: {generated_post_obj.product_image_url}")
-            print(f"Generated Content:\n{generated_post_obj.content}")
-            print("--------------------------")
-
-        except Exception as e:
-            print(f"An error occurred during test generation for item '{test_input_obj.item_name}': {e}")
-            import traceback
-            traceback.print_exc()
-
-    print("\n--- Post Generator Test Run Complete (Single Master Example Strategy) ---")
+    print("\n--- Generating Post for Sample Input ---")
+    post1 = generate_post(client_input, available_cats, warehouses, rates, stub_ai_client, "gpt-4.1-mini")
+    print("\n--- Final PostData ---")
+    print(json.dumps(post1.__dict__, indent=2, ensure_ascii=False))
