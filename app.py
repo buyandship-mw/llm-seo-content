@@ -9,11 +9,16 @@ from modules.executor import process_batch_input_data
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CATEGORIES_FILE = os.path.join(CURRENT_DIR, "data/categories.csv")
 WAREHOUSES_FILE = os.path.join(CURRENT_DIR, "data/warehouses.csv")
-INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test.csv")
+INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test2.csv")
 OUTPUT_POST_DATA_FILE = os.path.join(CURRENT_DIR, "output.csv")
 
-NUM_CATEGORY_DEMOS = 5
-NUM_CONTENT_DEMOS = 5
+rates = {
+    "USD": {"GBP": 0.80, "EUR": 0.92, "HKD": 7.80, "USD": 1.0},
+    "GBP": {"USD": 1.25, "EUR": 1.15, "HKD": 9.75, "GBP": 1.0},
+    "EUR": {"USD": 1.08, "GBP": 0.87, "HKD": 8.45, "EUR": 1.0},
+    "HKD": {"USD": 0.13, "GBP": 0.10, "EUR": 0.12, "HKD": 1.0},
+    "JPY": {"USD": 0.007, "GBP": 0.0056, "EUR": 0.0065, "JPY": 1.0},
+}
 
 def run_pipeline():
     """Main function to run the post generation pipeline."""
@@ -47,24 +52,24 @@ def run_pipeline():
     input_items = input_items[0:2]
 
     # # 3. Process the batch of input data
-    # print(f"\nProcessing {len(input_items)} items...")
-    # generated_posts = process_batch_input_data(
-    #     input_data_list=input_items,
-    #     available_categories=available_categories,
-    #     ai_client=ai_client,
-    #     sampler=sampler_instance,
-    #     num_category_demos=NUM_CATEGORY_DEMOS
-    # )
+    print(f"\nProcessing {len(input_items)} items...")
+    generated_posts = process_batch_input_data(
+        input_data_list=input_items,
+        available_categories=available_categories,
+        warehouses=warehouses,
+        rates=rates,
+        ai_client=ai_client
+    )
 
-    # # 4. Write results to an output file
-    # if generated_posts:
-    #     print(f"\nWriting {len(generated_posts)} generated posts to: {OUTPUT_POST_DATA_FILE}")
-    #     try:
-    #         write_post_data_to_csv(OUTPUT_POST_DATA_FILE, generated_posts)
-    #     except Exception as e:
-    #         print(f"Failed to write output data: {e}")
-    # else:
-    #     print("No posts were generated.")
+    # 4. Write results to an output file
+    if generated_posts:
+        print(f"\nWriting {len(generated_posts)} generated posts to: {OUTPUT_POST_DATA_FILE}")
+        try:
+            write_post_data_to_csv(OUTPUT_POST_DATA_FILE, generated_posts)
+        except Exception as e:
+            print(f"Failed to write output data: {e}")
+    else:
+        print("No posts were generated.")
 
     print("\n--- Post Generation Pipeline Finished ---")
 

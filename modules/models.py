@@ -36,3 +36,8 @@ class PostData:
     item_weight: Optional[float] = None
     payment_method: Optional[str] = None
     site: Optional[str] = None
+
+@dataclass
+class Warehouse:
+    id: str
+    currency: str

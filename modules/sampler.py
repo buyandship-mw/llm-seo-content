@@ -1,6 +1,6 @@
 from typing import List
 
-from modules.models import InputData, DemoData
+from modules.models import InputData
 
 class Sampler:
     """
@@ -8,14 +8,14 @@ class Sampler:
     Demos are prioritized by like_count within filtered buckets.
     The demo data list is provided at instantiation.
     """
-    _all_demos: List[DemoData]
+    _all_demos: List[InputData]
 
-    def __init__(self, all_demo_data: List[DemoData]):
+    def __init__(self, all_demo_data: List[InputData]):
         """
-        Initializes the Sampler with a pre-loaded list of DemoData objects.
+        Initializes the Sampler with a pre-loaded list of InputData objects.
 
         Args:
-            all_demo_data: A list of DemoData objects.
+            all_demo_data: A list of InputData objects.
         
         Raises:
             ValueError: If the provided all_demo_data list is empty or None.
@@ -26,7 +26,7 @@ class Sampler:
         self._all_demos = list(all_demo_data) 
         print(f"Sampler initialized with {len(self._all_demos)} demo items.")
 
-    def retrieve_demos(self, input_data: InputData, num_examples: int) -> List[DemoData]:
+    def retrieve_demos(self, input_data: InputData, num_examples: int) -> List[InputData]:
         """
         Retrieves a list of demo examples based on hierarchical filtering,
         prioritizing by highest 'like_count' in each tier.
@@ -42,14 +42,14 @@ class Sampler:
             num_examples: The desired number of demo examples to retrieve.
 
         Returns:
-            A list of DemoData objects, up to num_examples.
+            A list of InputData objects, up to num_examples.
         """
         if num_examples <= 0:
             return []
         if not self._all_demos:
             return []
 
-        selected_demos: List[DemoData] = []
+        selected_demos: List[InputData] = []
         
         # Tier 1: Match region AND item_category (Pool B)
         pool_b = [
@@ -100,23 +100,23 @@ if __name__ == '__main__':
     print("--- Testing Sampler (Prioritizing by Like Count with 4 Tiers) ---")
     
     # More diverse data for testing all tiers
-    in_memory_demo_data_list: List[DemoData] = [
+    in_memory_demo_data_list: List[InputData] = [
         # US, Electronics
-        DemoData(post_id="p1", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (US)", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er_us", site="TechFindsUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="My US E-Reader", content="Content US", like_count=150),
-        DemoData(post_id="p2", item_category="Electronics", category="Audio", item_name="Headphones Y2 (US)", item_unit_price=199.50, item_unit_price_currency="USD", item_url="url_hp_us", site="SoundGoodUS", warehouse_id="WH-USE", warehouse_location="US-East", region="US", title="US Quiet Time", content="Music US", like_count=200),
-        DemoData(post_id="p4", item_category="Electronics", category="Gadgets", item_name="Thermostat T4 (US)", item_unit_price=99.00, item_unit_price_currency="USD", item_url="url_thermo_us", site="HomeSmartUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="US Smart Home", content="Install US", like_count=180),
+        InputData(post_id="p1", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (US)", item_unit_price=129.99, item_unit_price_currency="USD", item_url="url_er_us", site="TechFindsUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="My US E-Reader", content="Content US", like_count=150),
+        InputData(post_id="p2", item_category="Electronics", category="Audio", item_name="Headphones Y2 (US)", item_unit_price=199.50, item_unit_price_currency="USD", item_url="url_hp_us", site="SoundGoodUS", warehouse_id="WH-USE", warehouse_location="US-East", region="US", title="US Quiet Time", content="Music US", like_count=200),
+        InputData(post_id="p4", item_category="Electronics", category="Gadgets", item_name="Thermostat T4 (US)", item_unit_price=99.00, item_unit_price_currency="USD", item_url="url_thermo_us", site="HomeSmartUS", warehouse_id="WH-USW", warehouse_location="US-West", region="US", title="US Smart Home", content="Install US", like_count=180),
         # US, Other Category
-        DemoData(post_id="p7", item_category="Home Goods", category="Kitchen", item_name="Coffee Maker (US)", item_unit_price=90.00, item_unit_price_currency="USD", item_url="url_coffee_us", site="KitchenUS", warehouse_id="WH-USC", warehouse_location="US-Central", region="US", title="US Coffee", content="Best brew US", like_count=170),
+        InputData(post_id="p7", item_category="Home Goods", category="Kitchen", item_name="Coffee Maker (US)", item_unit_price=90.00, item_unit_price_currency="USD", item_url="url_coffee_us", site="KitchenUS", warehouse_id="WH-USC", warehouse_location="US-Central", region="US", title="US Coffee", content="Best brew US", like_count=170),
         # EU, Fashion
-        DemoData(post_id="p3", item_category="Fashion", category="Accessories", item_name="Silk Scarf Z3 (EU)", item_unit_price=80.00, item_unit_price_currency="EUR", item_url="url_scarf_eu", site="EuroStyle", warehouse_id="WH-EU-C", warehouse_location="EU-Central", region="EU", title="EU Elegant Scarf", content="Soft EU", like_count=120),
+        InputData(post_id="p3", item_category="Fashion", category="Accessories", item_name="Silk Scarf Z3 (EU)", item_unit_price=80.00, item_unit_price_currency="EUR", item_url="url_scarf_eu", site="EuroStyle", warehouse_id="WH-EU-C", warehouse_location="EU-Central", region="EU", title="EU Elegant Scarf", content="Soft EU", like_count=120),
         # EU, Electronics
-        DemoData(post_id="p8", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (EU)", item_unit_price=139.99, item_unit_price_currency="EUR", item_url="url_er_eu", site="TechFindsEU", warehouse_id="WH-EUE", warehouse_location="EU-East", region="EU", title="My EU E-Reader", content="Content EU", like_count=160), # EU version of E-Reader
+        InputData(post_id="p8", item_category="Electronics", category="Gadgets", item_name="E-Reader X1 (EU)", item_unit_price=139.99, item_unit_price_currency="EUR", item_url="url_er_eu", site="TechFindsEU", warehouse_id="WH-EUE", warehouse_location="EU-East", region="EU", title="My EU E-Reader", content="Content EU", like_count=160), # EU version of E-Reader
         # CA, Books
-        DemoData(post_id="p5", item_category="Books", category="Fiction", item_name="The Great Novel N5 (CA)", item_unit_price=15.99, item_unit_price_currency="CAD", item_url="url_novel_ca", site="ReadMoreCA", warehouse_id="WH-CA-E", warehouse_location="CA-East", region="CA", title="CA Good Read", content="Page turner CA", like_count=90),
+        InputData(post_id="p5", item_category="Books", category="Fiction", item_name="The Great Novel N5 (CA)", item_unit_price=15.99, item_unit_price_currency="CAD", item_url="url_novel_ca", site="ReadMoreCA", warehouse_id="WH-CA-E", warehouse_location="CA-East", region="CA", title="CA Good Read", content="Page turner CA", like_count=90),
         # CA, Electronics
-        DemoData(post_id="p6", item_category="Electronics", category="Computers", item_name="Tablet Pro (CA)", item_unit_price=499.00, item_unit_price_currency="CAD", item_url="url_tab_ca", site="CanTech", warehouse_id="WH-CA-W", warehouse_location="CA-West", region="CA", title="CA New Tablet", content="Fast CA", like_count=250),
+        InputData(post_id="p6", item_category="Electronics", category="Computers", item_name="Tablet Pro (CA)", item_unit_price=499.00, item_unit_price_currency="CAD", item_url="url_tab_ca", site="CanTech", warehouse_id="WH-CA-W", warehouse_location="CA-West", region="CA", title="CA New Tablet", content="Fast CA", like_count=250),
         # AU, Other Category (neither Electronics nor Books, for full fallback)
-        DemoData(post_id="p9", item_category="Sports", category="Outdoor", item_name="Tent Z1 (AU)", item_unit_price=299.00, item_unit_price_currency="AUD", item_url="url_tent_au", site="AusOutdoor", warehouse_id="WH-AU-S", warehouse_location="AU-Sydney", region="AU", title="AU Camping", content="Great tent AU", like_count=100),
+        InputData(post_id="p9", item_category="Sports", category="Outdoor", item_name="Tent Z1 (AU)", item_unit_price=299.00, item_unit_price_currency="AUD", item_url="url_tent_au", site="AusOutdoor", warehouse_id="WH-AU-S", warehouse_location="AU-Sydney", region="AU", title="AU Camping", content="Great tent AU", like_count=100),
     ]
 
     try:
