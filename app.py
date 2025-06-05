@@ -13,11 +13,10 @@ INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test2.csv")
 OUTPUT_POST_DATA_FILE = os.path.join(CURRENT_DIR, "output.csv")
 
 rates = {
-    "USD": {"GBP": 0.80, "EUR": 0.92, "HKD": 7.80, "USD": 1.0},
-    "GBP": {"USD": 1.25, "EUR": 1.15, "HKD": 9.75, "GBP": 1.0},
-    "EUR": {"USD": 1.08, "GBP": 0.87, "HKD": 8.45, "EUR": 1.0},
-    "HKD": {"USD": 0.13, "GBP": 0.10, "EUR": 0.12, "HKD": 1.0},
-    "JPY": {"USD": 0.007, "GBP": 0.0056, "EUR": 0.0065, "JPY": 1.0},
+    "USD": {"GBP": 0.80, "EUR": 0.92, "HKD": 7.80, "JPY": 143.26},
+    "GBP": {"USD": 1.25, "EUR": 1.15, "HKD": 9.75, "JPY": 194.42},
+    "EUR": {"USD": 1.08, "GBP": 0.87, "HKD": 8.45, "JPY": 163.61},
+    "HKD": {"USD": 0.13, "GBP": 0.10, "EUR": 0.12, "JPY": 18.26},
 }
 
 def run_pipeline():
@@ -49,7 +48,7 @@ def run_pipeline():
 
     # 2. Initialize AI Client
     ai_client = OpenAIClient()
-    input_items = input_items[0:2]
+    input_items = input_items[5:6]
 
     # # 3. Process the batch of input data
     print(f"\nProcessing {len(input_items)} items...")
