@@ -2,6 +2,7 @@ from typing import Optional, List, Tuple, Union, TextIO
 import csv
 
 from modules.models import PostData
+from modules.post_data_builder import PostDataBuilder
 
 def load_categories_from_csv(filepath: str) -> List[str]:
     """Loads categories from a single-column CSV file (one category per line)."""
@@ -41,15 +42,15 @@ def load_warehouses_from_csv(filepath: str) -> List[Tuple[str,str]]:
         raise # Or return empty list / handle as appropriate
     return warehouses
 
-def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostData]:
-    """Parse CSV data into a list of ``PostData`` objects.
+def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostDataBuilder]:
+    """Parse CSV data into a list of :class:`PostDataBuilder` objects.
 
     The CSV headers should correspond to ``PostData`` field names. Any missing
     optional column will be filled with the default value from the dataclass.
     Numeric fields are converted when possible. Rows missing ``item_url`` are
     skipped.
     """
-    post_data_list: List[PostData] = []
+    post_data_list: List[PostDataBuilder] = []
     
     is_file_path = isinstance(file_input, str)
     if is_file_path:
@@ -67,7 +68,7 @@ def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostData]:
             print("CSV file appears to be empty or has no headers.")
             return []
             
-        required_headers = {'item_url'}
+        required_headers = {'item_url', 'region'}
         present_headers = set(reader.fieldnames)
         if not required_headers.issubset(present_headers):
             missing = required_headers - present_headers
@@ -80,11 +81,15 @@ def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostData]:
                     val = row_dict.get(key)
                     return val.strip() if val and val.strip() else None
 
-                # Required field
+                # Required fields
                 item_url = row_dict['item_url']
+                region = row_dict.get('region', '')
 
                 if not item_url or not item_url.strip():
                     print(f"Warning: Row {row_num}: Required field 'item_url' is empty. Skipping row.")
+                    continue
+                if not region or not region.strip():
+                    print(f"Warning: Row {row_num}: Required field 'region' is empty. Skipping row.")
                     continue
                 def to_float(val: Optional[str]) -> float:
                     if val is None:
@@ -109,29 +114,29 @@ def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostData]:
                         return False
                     return val.strip().lower() in {"true", "1", "yes"}
 
-                data_item = PostData(
-                    title=get_cleaned_value('title') or '',
-                    content=get_cleaned_value('content') or '',
-                    user=get_cleaned_value('user') or PostData.user,
-                    image_url=get_cleaned_value('image_url') or '',
-                    status=get_cleaned_value('status') or PostData.status,
-                    is_pinned=to_bool(get_cleaned_value('is_pinned')) if get_cleaned_value('is_pinned') is not None else PostData.is_pinned,
-                    pinned_end_datetime=to_int(get_cleaned_value('pinned_end_datetime')) if get_cleaned_value('pinned_end_datetime') is not None else PostData.pinned_end_datetime,
-                    pinned_expire_hours=to_int(get_cleaned_value('pinned_expire_hours')) if get_cleaned_value('pinned_expire_hours') is not None else PostData.pinned_expire_hours,
-                    disable_comment=to_bool(get_cleaned_value('disable_comment')) if get_cleaned_value('disable_comment') is not None else PostData.disable_comment,
-                    team_id=get_cleaned_value('team_id') or PostData.team_id,
-                    category=to_int(get_cleaned_value('category')),
-                    interest=get_cleaned_value('interest') or '',
-                    payment_method=get_cleaned_value('payment_method'),
-                    service=get_cleaned_value('service') or PostData.service,
-                    discounted=get_cleaned_value('discounted'),
-                    warehouse=get_cleaned_value('warehouse') or '',
-                    item_url=item_url.strip(),
-                    item_name=get_cleaned_value('item_name') or '',
-                    item_unit_price=to_float(get_cleaned_value('item_unit_price')),
-                    item_weight=to_float(get_cleaned_value('item_weight')),
-                )
-                post_data_list.append(data_item)
+                builder = PostDataBuilder(item_url=item_url.strip(), region=region.strip())
+                builder.update_from_dict({
+                    'title': get_cleaned_value('title') or '',
+                    'content': get_cleaned_value('content') or '',
+                    'user': get_cleaned_value('user') or PostData.user,
+                    'image_url': get_cleaned_value('image_url') or '',
+                    'status': get_cleaned_value('status') or PostData.status,
+                    'is_pinned': to_bool(get_cleaned_value('is_pinned')) if get_cleaned_value('is_pinned') is not None else PostData.is_pinned,
+                    'pinned_end_datetime': to_int(get_cleaned_value('pinned_end_datetime')) if get_cleaned_value('pinned_end_datetime') is not None else PostData.pinned_end_datetime,
+                    'pinned_expire_hours': to_int(get_cleaned_value('pinned_expire_hours')) if get_cleaned_value('pinned_expire_hours') is not None else PostData.pinned_expire_hours,
+                    'disable_comment': to_bool(get_cleaned_value('disable_comment')) if get_cleaned_value('disable_comment') is not None else PostData.disable_comment,
+                    'team_id': get_cleaned_value('team_id') or PostData.team_id,
+                    'category': to_int(get_cleaned_value('category')),
+                    'interest': get_cleaned_value('interest') or '',
+                    'payment_method': get_cleaned_value('payment_method'),
+                    'service': get_cleaned_value('service') or PostData.service,
+                    'discounted': get_cleaned_value('discounted'),
+                    'warehouse': get_cleaned_value('warehouse') or '',
+                    'item_name': get_cleaned_value('item_name') or '',
+                    'item_unit_price': to_float(get_cleaned_value('item_unit_price')),
+                    'item_weight': to_float(get_cleaned_value('item_weight')),
+                })
+                post_data_list.append(builder)
 
             except KeyError as e:
                 # This might occur if a row is severely malformed and DictReader yields unexpected keys,

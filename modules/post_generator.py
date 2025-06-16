@@ -426,6 +426,7 @@ if __name__ == '__main__':
         item_name="",
         item_unit_price=0.0,
         item_weight=0.0,
+        region="HK",
     )
 
     available_cats = ["sports", "healthcare", "fashion", "home", "recipe",

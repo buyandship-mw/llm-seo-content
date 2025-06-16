@@ -13,6 +13,7 @@ class PostData:
     item_name: str
     item_unit_price: float
     item_weight: float
+    region: str
     user: str = "B2kKF5R47K8VpY3ynBh9CB"
     status: str = "draft"
     is_pinned: bool = False

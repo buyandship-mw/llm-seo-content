@@ -33,7 +33,8 @@ def run_pipeline():
         print(warehouses)
         
         print(f"Loading input data from: {INPUT_DATA_FILE}")
-        input_items = parse_csv_to_post_data(INPUT_DATA_FILE)
+        input_builders = parse_csv_to_post_data(INPUT_DATA_FILE)
+        input_items = [b.build() for b in input_builders]
 
     except Exception as e:
         print(f"Failed to load initial data or initialize sampler: {e}")
