@@ -168,7 +168,7 @@ def scrape_and_extract(item_url: str, region: str) -> dict:
 if __name__ == "__main__":
     # Test stub: load sample markdown from file for quick local tests
     use_stub = True
-    test_url = "https://www.lush.com/uk/en/p/wasabi-shan-kui-shampoo?queryId=a9d530215c36459b66438cd919d05285,hk"
+    test_url = "https://dottodot.co.kr/product/detail.html?product_no=5395&cate_no=277"
     region = "hk"
     if use_stub:
         # Load from root/data/sample.md
@@ -179,4 +179,3 @@ if __name__ == "__main__":
         result = extract_product_data(sample_md, test_url, region)
     else:
         result = scrape_and_extract(test_url, region)
-    print(result)
