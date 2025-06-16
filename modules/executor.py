@@ -1,18 +1,18 @@
 from typing import Dict, List, Tuple
 
-from modules.models import InputData, PostData
+from modules.models import PostData
 from modules.openai_client import OpenAIClient
 from modules.post_generator import generate_post
 
 def process_batch_input_data(
-    input_data_list: List[InputData],
+    input_data_list: List[PostData],
     available_categories: List[str],
     warehouses: List[Tuple[str, str]],
     rates: Dict,
     ai_client: OpenAIClient
 ) -> List[PostData]:
     """
-    Processes a list of InputData items and returns a list of PostData items.
+    Processes a list of ``PostData`` items and returns a list of ``PostData`` results.
     """
     if not available_categories:
         raise ValueError("The 'available_categories' list cannot be empty.")
