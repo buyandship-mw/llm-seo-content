@@ -13,19 +13,44 @@ if not FIRECRAWL_API_KEY:
 
 API_URL = "https://api.firecrawl.dev/v1/scrape"
 
+import re
+
+import re
+
 def extract_main_image_url(md: str) -> str:
-    """Choose the best product image URL from markdown dump."""
-    image_md = re.findall(r'!\[[^\]]*\]\((https?://[^\)]+?\.(?:jpg|jpeg|png))\)', md)
+    """
+    Choose the best product image URL from markdown dump,
+    then strip any nested prefix so you only get the real image URL.
+    """
+    # 1) find all candidate URLs ending in jpg/jpeg/png
+    image_md    = re.findall(r'!\[[^\]]*\]\((https?://[^\)]+?\.(?:jpg|jpeg|png))\)', md)
     image_naked = re.findall(r'(https?://[^\s)]+?\.(?:jpg|jpeg|png))', md, re.I)
-    all_images = image_md + image_naked
+    all_images  = image_md + image_naked
 
+    # 2) filter out obvious junk and require “/I/” in the path
     junk = ('sprite', 'icon', 'nav-', 'logo', 'sash', '_SS40_', 'global-', 'privacy')
-    candidates = [u for u in all_images if not any(j in u for j in junk) and re.search(r'/I/', u)]
+    candidates = [
+        u for u in all_images
+        if not any(j in u for j in junk) and re.search(r'/I/', u)
+    ]
 
+    # 3) pick high-res if available, else the first candidate, else the first image, else None
     if candidates:
         high_res = [u for u in candidates if re.search(r'_(?:AC|SL|SX)', u)]
-        return high_res[0] if high_res else candidates[0]
-    return all_images[0] if all_images else None
+        selected = high_res[0] if high_res else candidates[0]
+    elif all_images:
+        selected = all_images[0]
+    else:
+        return None
+
+    # 4) strip any nested prefix: if there are two "https://", keep only from the second one
+    def strip_to_actual(url: str) -> str:
+        occurrences = [m.start() for m in re.finditer(r'https?://', url)]
+        if len(occurrences) > 1:
+            return url[occurrences[1]:]
+        return url
+
+    return strip_to_actual(selected)
 
 def extract_product_data(md: str, item_url: str, region: str) -> dict:
     """Extract structured product data from Firecrawl markdown."""
@@ -57,12 +82,30 @@ def extract_product_data(md: str, item_url: str, region: str) -> dict:
 
     # Price & currency
     price_patterns = [
-        (r'￥([0-9,]+)', 'JPY'),
-        (r'([0-9,]+)円', 'JPY'),
-        (r'\$(\d[\d,\.]*)', 'USD'),
-        (r'NT\$([0-9,\.]+)', 'TWD'),
-        (r'HK\$([0-9,\.]+)', 'HKD'),
-        (r'([0-9,\.]+)\s*元', 'CNY'),
+        # dollars variants
+        (r'CA\$([0-9,\.]+)',        'CAD'),  # Canadian dollar (e.g. CA$123.45)
+        (r'A\$([0-9,\.]+)',         'AUD'),  # Australian dollar (e.g. A$123.45)
+        (r'NT\$([0-9,\.]+)',        'TWD'),  # New Taiwan dollar
+        (r'HK\$([0-9,\.]+)',        'HKD'),  # Hong Kong dollar
+
+        # common symbols
+        (r'£([0-9,\.]+)',           'GBP'),  # British pound
+        (r'€([0-9,\.]+)',           'EUR'),  # Euro
+        (r'฿([0-9,\.]+)',           'THB'),  # Thai baht
+        (r'Rp\s?([0-9,\.]+)',       'IDR'),  # Indonesian rupiah
+
+        # CNY (using the “元” suffix)
+        (r'([0-9,\.]+)\s*元',       'CNY'),
+
+        # Japan
+        (r'￥([0-9,]+)',            'JPY'),  # full-width yen sign
+        (r'([0-9,]+)円',            'JPY'),  # yen with kanji
+
+        # Korea
+        (r'([0-9,]+)원',            'KRW'),  # won with hangul
+
+        # finally a generic USD fallback
+        (r'\$(\d[\d,\.]*)',         'USD'),
     ]
     source_price = None
     source_currency = None
@@ -123,7 +166,7 @@ def scrape_and_extract(item_url: str, region: str) -> dict:
 if __name__ == "__main__":
     # Test stub: load sample markdown from file for quick local tests
     use_stub = True
-    test_url = "https://example.com/product"
+    test_url = "https://www.lush.com/uk/en/p/wasabi-shan-kui-shampoo?queryId=a9d530215c36459b66438cd919d05285,hk"
     region = "hk"
     if use_stub:
         # Load from root/data/sample.md
