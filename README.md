@@ -9,3 +9,5 @@ automatically.
 To run a module on its own: `python3 -m modules/<module>.py`
 
 To run the test suite: `pytest`
+
+Firecrawl scraper: https://www.firecrawl.dev/playground
