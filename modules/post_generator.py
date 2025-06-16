@@ -71,11 +71,27 @@ def _get_conversion_rate(
     return None
 
 
+def _choose_better_name(scraped: Optional[str], llm_name: Optional[str]) -> str:
+    """Return the name that seems more concise and meaningful."""
+    scraped = scraped.strip() if scraped else ""
+    llm_name = llm_name.strip() if llm_name else ""
+
+    if not scraped:
+        return llm_name or "Item Name Unavailable"
+    if not llm_name:
+        return scraped
+
+    # Prefer llm_name if it is contained within the scraped name or is shorter
+    if llm_name.lower() in scraped.lower() or len(llm_name) <= len(scraped):
+        return llm_name
+    return scraped
+
+
 def _build_comprehensive_llm_prompt(
     client_input: PostData,
     available_bns_categories: List[Category],
     valid_warehouses_for_mcq: List[str]  # Just the warehouse codes for the prompt
-) -> str:
+) -> Tuple[str, List[str]]:
     prompt_lines = []
     category_labels = [c.label for c in available_bns_categories]
 
@@ -91,13 +107,13 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append("\n--- STEP-BY-STEP WORKFLOW ---")
     prompt_lines.append("1. Parse all provided fields, noting any pre-filled values.")
     prompt_lines.append(
-        "2. Scraped data may already include item_name, image_url, item_weight, price, and currency. "
-        "Keep the provided image_url and item_weight unchanged. "
+        "2. Scraped data may already include item_name, price, or currency. "
+        "Keep any provided image_url or item_weight exactly as received. "
         "If price or currency are missing, try to determine them. "
         "Also attempt your own item_name and later compare it with the scraped value."
     )
     prompt_lines.append(
-        "3. Extract each required data field. If information is unavailable, use these fallbacks: null for image_url, 0.0 for source_price, and 'N/A' for source_currency."
+        "3. Extract each required data field. If information is unavailable, use these fallbacks: 0.0 for source_price and 'N/A' for source_currency."
     )
     prompt_lines.append(
         "4. Select the most suitable category and warehouse from the lists above (never create new values)."
@@ -114,18 +130,29 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append(
         "Your entire response MUST be exactly one JSON object with these keys. Use the fallbacks above whenever a value can't be found."
     )
-    prompt_lines.append(
-        "{\n"
-        '  "item_name": "string",\n'
-        '  "image_url": "string_url | null",\n'
-        '  "category": "string_from_list",\n'
-        '  "warehouse": "string_from_list_or_client_value",\n'
-        '  "source_currency": "3_letter_code_or_\"N/A\"",\n'
-        '  "source_price": "float",\n'
-        '  "title": "string",\n'
-        '  "content": "string_plain_text"\n'
-        "}"
-    )
+
+    output_fields = ["item_name", "category", "warehouse", "title", "content"]
+    if not client_input.source_price:
+        output_fields.append("source_price")
+    if not client_input.source_currency:
+        output_fields.append("source_currency")
+
+    field_desc = {
+        "item_name": '  "item_name": "string"',
+        "category": '  "category": "string_from_list"',
+        "warehouse": '  "warehouse": "string_from_list_or_client_value"',
+        "source_currency": '  "source_currency": "3_letter_code_or_\"N/A\""',
+        "source_price": '  "source_price": "float"',
+        "title": '  "title": "string"',
+        "content": '  "content": "string_plain_text"',
+    }
+
+    output_lines = ["{\n"]
+    for idx, key in enumerate(output_fields):
+        comma = "," if idx < len(output_fields) - 1 else ""
+        output_lines.append(f"{field_desc[key]}{comma}\n")
+    output_lines.append("}")
+    prompt_lines.append("".join(output_lines))
     prompt_lines.append(
         "Reminder: Only use the provided lists for category and warehouse. If uncertain, default to the first list item."
     )
@@ -147,13 +174,6 @@ def _build_comprehensive_llm_prompt(
             f"- Determine the item's name from '{client_input.item_url}'. If not already, translate this name to English. Place the result in the 'item_name' field."
         )
 
-    # image_url
-    if client_input.image_url:
-        prompt_lines.append(
-            f"- Use the provided image URL '{client_input.image_url}' exactly as-is for the 'image_url' field. Do not modify it."
-        )
-    else:
-        prompt_lines.append("- No image URL is available. Use null for 'image_url'.")
 
     # warehouse (MCQ)
     if client_input.warehouse:
@@ -242,12 +262,13 @@ def _build_comprehensive_llm_prompt(
     prompt = "\n\n".join(prompt_lines)
     print(prompt)
 
-    return prompt
+    return prompt, output_fields
 
 def _invoke_comprehensive_llm(
     user_prompt: str,
     ai_client: OpenAIClient,
-    model: str
+    model: str,
+    expected_keys: List[str]
 ) -> Optional[Dict[str, Any]]:
     messages = [{"role": "user", "content": user_prompt}]
     raw_response_str = ai_client.get_completion_with_search(model=model, messages=messages)
@@ -256,13 +277,8 @@ def _invoke_comprehensive_llm(
         parsed_json = extract_and_parse_json(raw_response_str)
         print(f"DEBUG: Raw LLM response: {parsed_json}")
         if isinstance(parsed_json, dict):
-            # Validate that all required keys are present in LLM response
-            required_keys = [
-                "item_name", "image_url", "category", "warehouse",
-                "source_currency", "source_price",
-                "title", "content"
-            ]
-            missing_keys = [key for key in required_keys if key not in parsed_json]
+            # Validate that all expected keys are present in LLM response
+            missing_keys = [key for key in expected_keys if key not in parsed_json]
             if missing_keys:
                 print(f"Warning: LLM response missing required keys: {missing_keys}. Raw: {raw_response_str}")
             return parsed_json
@@ -306,10 +322,10 @@ def _finalize_data_from_llm_response(
     # --- Apply LLM output and client overrides ---
 
     # 1. item_name
-    if llm_output.get("item_name"):
-        final_data["item_name"] = str(llm_output.get("item_name"))
-    elif original_client_input.item_name:
-        final_data["item_name"] = original_client_input.item_name
+    final_data["item_name"] = _choose_better_name(
+        original_client_input.item_name,
+        llm_output.get("item_name")
+    )
 
     # 2. image_url (use scraper/client value only)
     if original_client_input.image_url:
@@ -429,13 +445,13 @@ def generate_post(
 
     valid_warehouses_for_prompt = [wh.value for wh in valid_warehouses]
 
-    user_prompt = _build_comprehensive_llm_prompt(
+    user_prompt, expected_keys = _build_comprehensive_llm_prompt(
         client_input,
         available_bns_categories,
         valid_warehouses_for_prompt
     )
 
-    llm_response_dict = _invoke_comprehensive_llm(user_prompt, ai_client, model)
+    llm_response_dict = _invoke_comprehensive_llm(user_prompt, ai_client, model, expected_keys)
 
     if llm_response_dict:
         finalized_data_dict = _finalize_data_from_llm_response(
