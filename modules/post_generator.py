@@ -1,9 +1,11 @@
 # modules/post_generator.py
 import json
+import os
 from typing import Dict, List, Optional, Any, Tuple
 
 from modules.models import PostData, Category, Warehouse
 from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your client
+from modules.csv_parser import load_forex_rates_from_json
 
 # --- Module Constants ---
 MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
@@ -60,13 +62,43 @@ def _get_conversion_rate(
         return 1.0
     if from_currency in rates_table and to_currency in rates_table[from_currency]:
         return rates_table[from_currency][to_currency]
-    
+
     # Try inverse if direct not found (e.g., table has USD:EUR but we need EUR:USD)
     if to_currency in rates_table and from_currency in rates_table[to_currency]:
         inverse_rate = rates_table[to_currency][from_currency]
-        if inverse_rate != 0: # Avoid division by zero
+        if inverse_rate != 0:  # Avoid division by zero
             return 1.0 / inverse_rate
-            
+
+    # Attempt conversion via USD as an intermediary
+    usd = "USD"
+
+    def _rate_to_usd(cur: str) -> Optional[float]:
+        if cur == usd:
+            return 1.0
+        if cur in rates_table and usd in rates_table[cur]:
+            return rates_table[cur][usd]
+        if usd in rates_table and cur in rates_table[usd]:
+            inv = rates_table[usd][cur]
+            if inv != 0:
+                return 1.0 / inv
+        return None
+
+    def _rate_from_usd(target: str) -> Optional[float]:
+        if target == usd:
+            return 1.0
+        if usd in rates_table and target in rates_table[usd]:
+            return rates_table[usd][target]
+        if target in rates_table and usd in rates_table[target]:
+            inv = rates_table[target][usd]
+            if inv != 0:
+                return 1.0 / inv
+        return None
+
+    to_usd = _rate_to_usd(from_currency)
+    from_usd = _rate_from_usd(to_currency)
+    if to_usd is not None and from_usd is not None:
+        return to_usd * from_usd
+
     print(f"Warning: Conversion rate from {from_currency} to {to_currency} not found in table.")
     return None
 
@@ -518,14 +550,8 @@ if __name__ == '__main__':
         ]
     ]
 
-    # Simplified conversion rates
-    rates = {
-        "USD": {"GBP": 0.80, "EUR": 0.92, "HKD": 7.80, "USD": 1.0},
-        "GBP": {"USD": 1.25, "EUR": 1.15, "HKD": 9.75, "GBP": 1.0},
-        "EUR": {"USD": 1.08, "GBP": 0.87, "HKD": 8.45, "EUR": 1.0},
-        "HKD": {"USD": 0.13, "GBP": 0.10, "EUR": 0.12, "HKD": 1.0},
-        "JPY": {"USD": 0.007, "GBP": 0.0056, "EUR": 0.0065, "JPY": 1.0},
-    }
+    forex_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "presets", "forex_rates.json")
+    rates = load_forex_rates_from_json(forex_file)
 
     stub_ai_client = OpenAIClient()
 

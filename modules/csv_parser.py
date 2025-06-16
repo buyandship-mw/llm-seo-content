@@ -4,6 +4,7 @@ import json
 
 from modules.models import PostData, Category, Interest, Warehouse
 from modules.post_data_builder import PostDataBuilder
+from typing import Dict
 
 def load_categories_from_json(filepath: str) -> List[Category]:
     """Loads ``Category`` objects from a JSON file."""
@@ -72,6 +73,28 @@ def load_warehouses_from_json(filepath: str) -> List[Warehouse]:
         print(f"An error occurred while loading warehouses from '{filepath}': {e}")
         raise
     return warehouses
+
+
+def load_forex_rates_from_json(filepath: str) -> Dict[str, Dict[str, float]]:
+    """Load currency conversion rates from a JSON file."""
+    rates: Dict[str, Dict[str, float]] = {}
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("Forex rates file must contain a JSON object.")
+            for base, mapping in data.items():
+                if not isinstance(mapping, dict):
+                    continue
+                rates[base.upper()] = {k.upper(): float(v) for k, v in mapping.items()}
+        print(f"Successfully loaded forex rates from '{filepath}'.")
+    except FileNotFoundError:
+        print(f"Error: Forex rates file '{filepath}' not found.")
+        raise
+    except Exception as e:
+        print(f"An error occurred while loading forex rates from '{filepath}': {e}")
+        raise
+    return rates
 
 def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostDataBuilder]:
     """Parse CSV data into a list of :class:`PostDataBuilder` objects.
