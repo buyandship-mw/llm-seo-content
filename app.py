@@ -1,7 +1,7 @@
 import os
 
 from modules.openai_client import AzureOpenAIClient, OpenAIClient
-from modules.csv_parser import load_categories_from_csv, load_warehouses_from_csv, parse_csv_to_input_data
+from modules.csv_parser import load_categories_from_csv, load_warehouses_from_csv, parse_csv_to_post_data
 from modules.csv_writer import write_post_data_to_csv
 from modules.executor import process_batch_input_data
 
@@ -33,7 +33,7 @@ def run_pipeline():
         print(warehouses)
         
         print(f"Loading input data from: {INPUT_DATA_FILE}")
-        input_items = parse_csv_to_input_data(INPUT_DATA_FILE)
+        input_items = parse_csv_to_post_data(INPUT_DATA_FILE)
 
     except Exception as e:
         print(f"Failed to load initial data or initialize sampler: {e}")
