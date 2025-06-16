@@ -58,7 +58,7 @@ def run_pipeline():
 
     # 2. Initialize AI Client
     ai_client = OpenAIClient()
-    input_items = input_items[5:6]
+    input_items = input_items[:3]
 
     # # 3. Process the batch of input data
     print(f"\nProcessing {len(input_items)} items...")
