@@ -79,30 +79,54 @@ def _build_comprehensive_llm_prompt(
     prompt_lines = []
     category_labels = [c.label for c in available_bns_categories]
 
-    # 1. Role Definition & Overall Goal
+    # --- Lists the model can choose from (moved to top) ---
+    prompt_lines.append("### SELECTABLE OPTIONS")
+    prompt_lines.append(f"Warehouses: {valid_warehouses_for_mcq}")
+    prompt_lines.append(f"Categories: {category_labels}")
     prompt_lines.append(
-        "You are an expert e-commerce data processor and content creator. "
-        "Your goal is to analyze client-provided data, search the item_url "
-        "for missing details or verifications, make specified predictions from lists, "
-        "and generate post content. All generated textual content should be appropriate for the target region specified. " # Added subtle hint
-        "Output everything in a single, specific JSON structure."
+        "You may ONLY choose values from these lists. Never invent new warehouses or categories."
     )
+
+    # --- Step-by-step workflow ---
+    prompt_lines.append("\n--- STEP-BY-STEP WORKFLOW ---")
+    prompt_lines.append("1. Parse all provided fields, noting any pre-filled values.")
+    prompt_lines.append(
+        "2. Simulate searching the item_url to collect missing info: item name, price, currency, and best image URL."
+    )
+    prompt_lines.append(
+        "3. Extract each required data field. If information is unavailable, use these fallbacks: null for image_url, 0.0 for item_price_in_item_currency, and 'N/A' for item_currency."
+    )
+    prompt_lines.append(
+        "4. Select the most suitable category and warehouse from the lists above (never create new values)."
+    )
+    prompt_lines.append(
+        "5. Generate region-specific 'title' and 'content' matching the tone and structure of the provided examples."
+    )
+    prompt_lines.append(
+        "6. Output a single valid JSON object using the structure below with no commentary or markdown."
+    )
+
+    # --- Output format & guardrails ---
     prompt_lines.append("\n--- REQUIRED JSON OUTPUT STRUCTURE ---")
     prompt_lines.append(
-        "Your entire response MUST be a single JSON object with the following exact keys "
-        "and value types (use null for optional string fields if no relevant information is found, "
-        "unless specified otherwise, ensure price is a float and currency a 3-letter code):\n"
+        "Your entire response MUST be exactly one JSON object with these keys. Use the fallbacks above whenever a value can't be found."
+    )
+    prompt_lines.append(
         "{\n"
-        '  "item_name": "string", // Should be in the primary language of the target post region\n' # Added comment
+        '  "item_name": "string",\n'
         '  "image_url": "string_url | null",\n'
-        '  "category": "string_chosen_from_provided_list",\n'
-        '  "warehouse": "string_chosen_from_provided_list_or_clients_value",\n'
-        '  "item_currency": "string_3_letter_code_as_found_on_site",\n'
-        '  "item_price_in_item_currency": "float_as_found_on_site",\n'
-        '  "title": "string", // Should be in the primary language of the target post region\n' # Added comment
-        '  "content": "string_plain_text_no_markdown" // Should be in the primary language of the target post region\n' # Added comment
+        '  "category": "string_from_list",\n'
+        '  "warehouse": "string_from_list_or_client_value",\n'
+        '  "item_currency": "3_letter_code_or_\"N/A\"",\n'
+        '  "item_price_in_item_currency": "float",\n'
+        '  "title": "string",\n'
+        '  "content": "string_plain_text"\n'
         "}"
     )
+    prompt_lines.append(
+        "Reminder: Only use the provided lists for category and warehouse. If uncertain, default to the first list item."
+    )
+
     prompt_lines.append("\n--- CLIENT-PROVIDED DATA & INSTRUCTIONS ---")
     prompt_lines.append(f"Item URL to analyze: {client_input.item_url}")
     prompt_lines.append(f"Target region for the post style: {client_input.region}")
@@ -119,7 +143,7 @@ def _build_comprehensive_llm_prompt(
         prompt_lines.append(f"- Use '{client_input.image_url}' for the 'image_url' field in your JSON output.")
     else:
         prompt_lines.append(
-            f"- Perform a web search for the item at the provided item_url and find the best image URL. "
+            f"- Simulate a web search for the item at the provided item_url and find the best image URL. "
             "Place this definitive URL in the 'image_url' field. If no suitable image is found, use null."
         )
 
@@ -128,7 +152,7 @@ def _build_comprehensive_llm_prompt(
         prompt_lines.append(f"- Use '{client_input.warehouse}' for the 'warehouse' field in your JSON output.")
     else:
         prompt_lines.append(
-            f"- Determine the primary country this item is sold from via web search on {client_input.item_url}."
+            f"- Simulate a web search on {client_input.item_url} to determine the primary country the item is sold from."
         )
         prompt_lines.append(
             f"- Then, from the following list of valid warehouses: {valid_warehouses_for_mcq}, select the one whose country is the same as or geographically closest to the country the item is sold from. Place your choice in the 'warehouse' field."
@@ -182,7 +206,7 @@ def _build_comprehensive_llm_prompt(
 
     prompt_lines.append(
         "\n--- CONTENT GENERATION (TITLE & CONTENT) ---" # Updated section title for clarity
-        f"\nBased on all information (client-provided and your findings from web search), "
+        f"\nBased on all information (client-provided and your findings from your simulated search), "
         "generate 'title' (string) and 'content' (string, plain text, NO MARKDOWN formatting)."
     )
     prompt_lines.append(
@@ -190,7 +214,7 @@ def _build_comprehensive_llm_prompt(
         f"The style, tone, and structure for 'title' and 'content' should be closely guided by the master examples "
         f"provided below for the {client_input.region} region. "
         f"{language_guidance} " # language_guidance already refers to plural examples
-        f"The 'content' should generally have two main sections based on your web search: "
+        f"The 'content' should generally have two main sections based on your simulated search: "
         "1. a product introduction (highlighting key features/benefits), and "
         "2. a brief summary of user reviews or public sentiment."
     )
