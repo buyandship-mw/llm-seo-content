@@ -13,44 +13,47 @@ if not FIRECRAWL_API_KEY:
 
 API_URL = "https://api.firecrawl.dev/v1/scrape"
 
-import re
-
-import re
-
 def extract_main_image_url(md: str) -> str:
     """
-    Choose the best product image URL from markdown dump,
-    then strip any nested prefix so you only get the real image URL.
+    Find all .jpg/.jpeg/.png URLs (including any ?query=…),
+    filter out junk, then:
+      1) return the first .jpg
+      2) else the first remaining image
+      3) else None
+    Finally, remove any trailing querystring or parameters.
     """
-    # 1) find all candidate URLs ending in jpg/jpeg/png
-    image_md    = re.findall(r'!\[[^\]]*\]\((https?://[^\)]+?\.(?:jpg|jpeg|png))\)', md)
-    image_naked = re.findall(r'(https?://[^\s)]+?\.(?:jpg|jpeg|png))', md, re.I)
-    all_images  = image_md + image_naked
+    # 1) grab every image URL with optional querystring, in order
+    all_images = re.findall(
+        r'https?://[^\s\)]+?\.(?:jpg|jpeg|png)(?:\?[^\s\)]*)?',
+        md,
+        re.IGNORECASE
+    )
 
-    # 2) filter out obvious junk and require “/I/” in the path
+    # 2) drop obvious junk URLs
     junk = ('sprite', 'icon', 'nav-', 'logo', 'sash', '_SS40_', 'global-', 'privacy')
-    candidates = [
-        u for u in all_images
-        if not any(j in u for j in junk) and re.search(r'/I/', u)
-    ]
+    candidates = [u for u in all_images if not any(j in u for j in junk)]
 
-    # 3) pick high-res if available, else the first candidate, else the first image, else None
+    # 3) pick first .jpg, else first candidate, else None
     if candidates:
-        high_res = [u for u in candidates if re.search(r'_(?:AC|SL|SX)', u)]
-        selected = high_res[0] if high_res else candidates[0]
-    elif all_images:
-        selected = all_images[0]
+        selected = None
+        for u in candidates:
+            if re.search(r'\.jpg(?:$|\?)', u, re.IGNORECASE):
+                selected = u
+                break
+        if not selected:
+            selected = candidates[0]
     else:
         return None
 
-    # 4) strip any nested prefix: if there are two "https://", keep only from the second one
-    def strip_to_actual(url: str) -> str:
-        occurrences = [m.start() for m in re.finditer(r'https?://', url)]
-        if len(occurrences) > 1:
-            return url[occurrences[1]:]
-        return url
+    # 4) strip nested prefixes (keep URL from second "https://")
+    occ = [m.start() for m in re.finditer(r'https?://', selected)]
+    url = selected[occ[1]:] if len(occ) > 1 else selected
 
-    return strip_to_actual(selected)
+    # 5) remove everything after the file extension
+    #    (so "…jpg?1741166901" → "…jpg")
+    clean_url = re.sub(r'(\.(?:jpg|jpeg|png)).*$', r'\1', url, flags=re.IGNORECASE)
+
+    return clean_url
 
 def extract_product_data(md: str, item_url: str, region: str) -> dict:
     """Extract structured product data from Firecrawl markdown."""
