@@ -132,8 +132,8 @@ def extract_product_data(md: str, item_url: str, region: str) -> dict:
         if wm:
             weight = round(float(wm.group(1)) * factor, 2)
             break
-
-    return {
+    
+    data = {
         'item_url': item_url,
         'region': region,
         'image_url': image_url,
@@ -142,6 +142,8 @@ def extract_product_data(md: str, item_url: str, region: str) -> dict:
         'source_currency': source_currency,
         'item_weight': weight
     }
+    print(f"Extracted data: {data}")
+    return data
 
 def scrape_and_extract(item_url: str, region: str) -> dict:
     """Fetch the page via Firecrawl and extract product data."""
