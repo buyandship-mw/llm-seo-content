@@ -1,7 +1,10 @@
 import os
 import json
-import configparser
 from typing import List, Dict, Any, Optional, Union
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 try:
     from openai import OpenAI, AzureOpenAI
@@ -11,47 +14,39 @@ except ImportError:
     print("Warning: 'openai' or 'pydantic' library not found. OpenAIClient functionality will be limited or unavailable.")
 
 class AzureOpenAIClient:
-    """
-    A simple client for interacting with Azure OpenAI service for basic text completions.
-    Reads configuration from config.ini.
+    """Client for Azure OpenAI using environment variables.
 
-    Configuration file should have a section 'openai_azure' with the following keys:
-    - api_key: Your Azure OpenAI API key
-    - endpoint: Your Azure OpenAI endpoint (e.g., https://your-resource-name.openai.azure.com/)
-    - api_version: The API version to use (e.g., 2023-05-15)
-    - deployment: The name of the Azure OpenAI deployment to use (e.g., gpt-35-turbo)
+    Required environment variables:
+      - ``AZURE_OPENAI_API_KEY``
+      - ``AZURE_OPENAI_ENDPOINT``
+      - ``AZURE_OPENAI_API_VERSION``
+      - ``AZURE_OPENAI_DEPLOYMENT``
     """
+
     deployment: str
 
-    def __init__(self, config_file: str = 'config.ini'):
+    def __init__(self) -> None:
         if not OPENAI_LIB_AVAILABLE:
             raise ImportError("OpenAI library is not installed. Cannot initialize AzureOpenAIClient.")
-        
-        if not os.path.exists(config_file):
-            raise FileNotFoundError(f"Configuration file '{config_file}' not found at '{os.path.abspath(config_file)}'.")
-        
-        config = configparser.ConfigParser()
-        config.read(config_file)
 
-        config_section = 'openai_azure'
-        if config_section not in config:
-            raise ValueError(f"Section '{config_section}' not found in '{config_file}'.")
+        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION")
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
 
-        azure_cfg = config[config_section]
-        api_key = azure_cfg.get('api_key')
-        azure_endpoint = azure_cfg.get('endpoint')
-        api_version = azure_cfg.get('api_version')
-        self.deployment = azure_cfg.get('deployment')
+        if not api_key:
+            raise ValueError("Environment variable AZURE_OPENAI_API_KEY not set.")
+        if not azure_endpoint:
+            raise ValueError("Environment variable AZURE_OPENAI_ENDPOINT not set.")
+        if not api_version:
+            raise ValueError("Environment variable AZURE_OPENAI_API_VERSION not set.")
+        if not self.deployment:
+            raise ValueError("Environment variable AZURE_OPENAI_DEPLOYMENT not set.")
 
-        if not api_key: raise ValueError(f"Azure API key not found in '{config_section}'.")
-        if not azure_endpoint: raise ValueError(f"Azure endpoint not found in '{config_section}'.")
-        if not api_version: raise ValueError(f"Azure API version not found in '{config_section}'.")
-        if not self.deployment: raise ValueError(f"Azure deployment name not found in '{config_section}'.")
-        
         self.client = AzureOpenAI(
             api_key=api_key,
             api_version=api_version,
-            azure_endpoint=azure_endpoint
+            azure_endpoint=azure_endpoint,
         )
         print(f"Initialized AzureOpenAIClient with deployment: {self.deployment}.")
 
@@ -103,33 +98,19 @@ class AzureOpenAIClient:
             raise e
 
 class OpenAIClient:
-    """
-    A simple client for interacting with the regular OpenAI service.
-    Reads configuration from config.ini.
+    """Client for the standard OpenAI API using environment variables.
 
-    Configuration file should have a section 'openai' with the following key:
-    - api_key: Your OpenAI API key
+    Requires the ``OPENAI_API_KEY`` environment variable.
     """
-    def __init__(self, config_file: str = 'config.ini'):
+
+    def __init__(self) -> None:
         if not OPENAI_LIB_AVAILABLE:
             raise ImportError("OpenAI library is not installed. Cannot initialize OpenAIClient.")
 
-        if not os.path.exists(config_file):
-            raise FileNotFoundError(f"Configuration file '{config_file}' not found at '{os.path.abspath(config_file)}'.")
-        
-        config = configparser.ConfigParser()
-        config.read(config_file)
-
-        config_section = 'openai'
-        if config_section not in config:
-            raise ValueError(f"Section '{config_section}' not found in '{config_file}'.")
-        
-        std_config = config[config_section]
-        api_key = std_config.get('api_key')
-        
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError("Standard OpenAI API key not found in config file.")
-        
+            raise ValueError("Environment variable OPENAI_API_KEY not set.")
+
         self.client = OpenAI(api_key=api_key)
         print("Initialized OpenAIClient (using 'client.responses.create').")
 

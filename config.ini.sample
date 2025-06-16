@@ -1,8 +1,0 @@
-[openai]
-api_key = 
-
-[openai_azure]
-endpoint =
-api_key =
-deployment =
-api_version =

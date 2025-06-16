@@ -9,7 +9,7 @@ from modules.executor import process_batch_input_data
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CATEGORIES_FILE = os.path.join(CURRENT_DIR, "data/categories.csv")
 WAREHOUSES_FILE = os.path.join(CURRENT_DIR, "data/warehouses.csv")
-INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test2.csv")
+INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test.csv")
 OUTPUT_POST_DATA_FILE = os.path.join(CURRENT_DIR, "output.csv")
 
 rates = {
