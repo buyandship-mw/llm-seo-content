@@ -1,13 +1,13 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
-from modules.models import PostData
+from modules.models import PostData, Category, Warehouse
 from modules.openai_client import OpenAIClient
 from modules.post_generator import generate_post
 
 def process_batch_input_data(
     input_data_list: List[PostData],
-    available_categories: List[str],
-    warehouses: List[Tuple[str, str]],
+    available_categories: List[Category],
+    warehouses: List[Warehouse],
     rates: Dict,
     ai_client: OpenAIClient
 ) -> List[PostData]:

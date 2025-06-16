@@ -1,45 +1,76 @@
-from typing import Optional, List, Tuple, Union, TextIO
+from typing import Optional, List, Union, TextIO
 import csv
+import json
 
-from modules.models import PostData
+from modules.models import PostData, Category, Interest, Warehouse
 from modules.post_data_builder import PostDataBuilder
 
-def load_categories_from_csv(filepath: str) -> List[str]:
-    """Loads categories from a single-column CSV file (one category per line)."""
-    categories: List[str] = []
+def load_categories_from_json(filepath: str) -> List[Category]:
+    """Loads ``Category`` objects from a JSON file."""
+    categories: List[Category] = []
     try:
-        with open(filepath, 'r', encoding='utf-8', newline='') as f:
-            reader = csv.reader(f)
-            for row in reader:
-                if row and row[0].strip(): # Check for non-empty row and cell
-                    categories.append(row[0].strip())
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            for item in data:
+                if item.get('disabled'):
+                    continue
+                try:
+                    value = int(item.get('value'))
+                except (TypeError, ValueError):
+                    continue
+                categories.append(Category(label=item.get('label', ''), value=value))
         print(f"Successfully loaded {len(categories)} categories from '{filepath}'.")
     except FileNotFoundError:
         print(f"Error: Categories file '{filepath}' not found.")
-        raise # Or return empty list / handle as appropriate
+        raise
     except Exception as e:
         print(f"An error occurred while loading categories from '{filepath}': {e}")
-        raise # Or return empty list / handle as appropriate
+        raise
     return categories
 
-def load_warehouses_from_csv(filepath: str) -> List[Tuple[str,str]]:
-    """Loads warehouses from a CSV file with two columns: 'warehouse_id' and 'region'."""
-    warehouses: List[Tuple[str, str]] = []
+
+def load_interests_from_json(filepath: str) -> List[Interest]:
+    """Loads ``Interest`` objects from a JSON file."""
+    interests: List[Interest] = []
     try:
-        with open(filepath, 'r', encoding='utf-8', newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                warehouse_id = row.get('warehouse_id', '').strip()
-                region = row.get('currency', '').strip()
-                if warehouse_id and region:
-                    warehouses.append((warehouse_id, region))
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            for item in data:
+                if item.get('disabled'):
+                    continue
+                interests.append(Interest(label=item.get('label', ''), value=item.get('value', '')))
+        print(f"Successfully loaded {len(interests)} interests from '{filepath}'.")
+    except FileNotFoundError:
+        print(f"Error: Interests file '{filepath}' not found.")
+        raise
+    except Exception as e:
+        print(f"An error occurred while loading interests from '{filepath}': {e}")
+        raise
+    return interests
+
+def load_warehouses_from_json(filepath: str) -> List[Warehouse]:
+    """Loads ``Warehouse`` objects from a JSON file."""
+    warehouses: List[Warehouse] = []
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            for item in data:
+                if item.get('disabled'):
+                    continue
+                warehouses.append(
+                    Warehouse(
+                        label=item.get('label', ''),
+                        value=item.get('value', ''),
+                        currency=item.get('currency', '')
+                    )
+                )
         print(f"Successfully loaded {len(warehouses)} warehouses from '{filepath}'.")
     except FileNotFoundError:
         print(f"Error: Warehouses file '{filepath}' not found.")
-        raise # Or return empty list / handle as appropriate
+        raise
     except Exception as e:
         print(f"An error occurred while loading warehouses from '{filepath}': {e}")
-        raise # Or return empty list / handle as appropriate
+        raise
     return warehouses
 
 def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostDataBuilder]:
