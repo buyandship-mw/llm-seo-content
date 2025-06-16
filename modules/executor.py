@@ -1,8 +1,11 @@
 from typing import Dict, List
 
+from dataclasses import asdict
 from modules.models import PostData, Category, Warehouse
 from modules.openai_client import OpenAIClient
 from modules.post_generator import generate_post
+from modules.scraper import scrape_and_extract
+from modules.post_data_builder import PostDataBuilder
 
 def process_batch_input_data(
     input_data_list: List[PostData],
@@ -22,9 +25,20 @@ def process_batch_input_data(
     all_post_data: List[PostData] = []
     for i, input_item in enumerate(input_data_list):
         print(f"Processing item {i + 1}/{len(input_data_list)}: '{input_item.item_url}'...")
+
+        # --- Scrape additional data before invoking the LLM ---
+        enriched_input = input_item
+        try:
+            scraped = scrape_and_extract(input_item.item_url, input_item.region)
+            builder = PostDataBuilder.from_dict(asdict(input_item))
+            builder.update_from_dict(scraped)
+            enriched_input = builder.build()
+        except Exception as scrape_err:
+            print(f"Warning: Scraper failed for {input_item.item_url}: {scrape_err}. Using original input.")
+
         try:
             post_data_result = generate_post(
-                client_input=input_item,
+                client_input=enriched_input,
                 available_bns_categories=available_categories,
                 valid_warehouses=warehouses,
                 currency_conversion_rates=rates,
