@@ -1,0 +1,39 @@
+region,item_url,item_name,image_url,post_category,warehouse_id,item_currency,item_price,post_title,post_content,discount,item_category,item_weight,payment_method,site
+hk,https://amzn.asia/d/9YxKlkp,2024年超快適 音質強化モデル イヤーカフ イヤホン,https://m.media-amazon.com/images/I/71J0J0J0J0L._AC_SL1500_.jpg,electronics,warehouse-qs-osaka,JPY,2999.0,🎧 2024年超快適 音質強化模型 イヤーカフ イヤ機,"
+- 最新藍牙5.4技術，連接更穩定
+- Hi-Fi音質，音樂更清晰
+- 輕巧設計，約5.6克，佩戴舒適
+- ENC通話降噪，通話更清晰
+- 開放式設計，耳朵不受壓
+- IPX5防水，運動時無需擔心
+- 支援iOS/Android，通勤、通學、運動、遊戲都適用
+
+用家評價
+👍 音質清晰，佩戴舒適，連接穩定
+⚠️ 電池續航時間較短，需要經常充電",,,,,
+
+{
+
+\"accept_language\":\"zh_TW\",\"interest\":null,\"category\":null,\"media\":[[],{\"s\":\"arr\"}],\"payment_method\":null,\"service\":null,\"discounted\":null,\"warehouse\":null,\"item_url\":null,\"item_name\":null,\"item_unit_price\":null,\"item_weight\":null},{\"s\":\"arr\"}],\"now\":[\"2025-06-16T15:31:10+00:00\",{\"type\":\"carbon\",\"s\":\"cbn\"}],\"mountedActions\":[[],{\"s\":\"arr\"}],\"mountedActionsArguments\":[[],{\"s\":\"arr\"}],\"mountedActionsData\":[[],{\"s\":\"arr\"}],\"defaultAction\":null,\"defaultActionArguments\":null,\"componentFileAttachments\":[[],{\"s\":\"arr\"}],\"mountedFormComponentActions\":[[],{\"s\":\"arr\"}],\"mountedFormComponentActionsArguments\":[[],{\"s\":\"arr\"}],\"mountedFormComponentActionsData\":[[],{\"s\":\"arr\"}],\"mountedFormComponentActionsComponents\":[[],{\"s\":\"arr\"}],\"mountedInfolistActions\":[[],{\"s\":\"arr\"}],\"mountedInfolistActionsData\":[[],{\"s\":\"arr\"}],\"mountedInfolistActionsComponent\":null,\"mountedInfolistActionsInfolist\":null},\"memo\":{\"id\":\"xpvPcWox3sBJ8J7qOIe3\",\"name\":\"app.filament.pages.posts.create-post\",\"path\":\"admin-dashboard\\/create-post\",\"method\":\"GET\",\"children\":[],\"scripts\":[],\"assets\":[],\"errors\":[],\"locale\":\"en_US\"},\"checksum\":\"b0952f47ce9af67054bdd797162d0a57987fbe9755198142736f0c9e68b5fa76\"}",
+
+"title": "",
+"content": "",
+"user": "B2kKF5R47K8VpY3ynBh9CB",
+"image_url": "",
+"item_url": "",
+
+title: str
+content: str
+user: str = "B2kKF5R47K8VpY3ynBh9CB" // tw_dummy account
+image_url: str
+item_url: str
+status: str = "draft"
+is_pinned: bool = False
+pinned_end_datetime: int = 0
+pinned_expire_hours: int = 0
+disable_comment: bool = False
+team_id: str = "hk"
+category: int
+interest: str
+
+

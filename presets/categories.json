@@ -1,0 +1,467 @@
+[
+    {
+        "label": "Health, Household & Baby Care",
+        "value": "21061000",
+        "disabled": false
+    },
+    {
+        "label": "Grocery & Gourmet Food",
+        "value": "21069090",
+        "disabled": false
+    },
+    {
+        "label": "Vitamins & Dietary Supplements",
+        "value": "29369000",
+        "disabled": false
+    },
+    {
+        "label": "Luxury Beauty",
+        "value": "33049990",
+        "disabled": false
+    },
+    {
+        "label": "Mens Grooming",
+        "value": "33059010",
+        "disabled": false
+    },
+    {
+        "label": "Kitchen & Dining",
+        "value": "39241000",
+        "disabled": false
+    },
+    {
+        "label": "Baby Registry",
+        "value": "39269090",
+        "disabled": false
+    },
+    {
+        "label": "Pet Supplies",
+        "value": "42010000",
+        "disabled": false
+    },
+    {
+        "label": "Luggage",
+        "value": "42021230",
+        "disabled": false
+    },
+    {
+        "label": "Handbags & Accessories",
+        "value": "42022220",
+        "disabled": false
+    },
+    {
+        "label": "Home D\u00e9cor",
+        "value": "46021100",
+        "disabled": false
+    },
+    {
+        "label": "Stationery & Party Supplies",
+        "value": "48171000",
+        "disabled": false
+    },
+    {
+        "label": "Kids Birthdays",
+        "value": "48239090",
+        "disabled": false
+    },
+    {
+        "label": "Books",
+        "value": "49011000",
+        "disabled": false
+    },
+    {
+        "label": "Magazines",
+        "value": "49019100",
+        "disabled": false
+    },
+    {
+        "label": "Textbooks",
+        "value": "49019900",
+        "disabled": false
+    },
+    {
+        "label": "Childrens Books",
+        "value": "49030000",
+        "disabled": false
+    },
+    {
+        "label": "Entertainment Collectibles",
+        "value": "49119100",
+        "disabled": false
+    },
+    {
+        "label": "Household",
+        "value": "57019000",
+        "disabled": false
+    },
+    {
+        "label": "Handmade bedding",
+        "value": "58110000",
+        "disabled": false
+    },
+    {
+        "label": "Outdoor Clothing",
+        "value": "61012000",
+        "disabled": false
+    },
+    {
+        "label": "Men",
+        "value": "61051010",
+        "disabled": false
+    },
+    {
+        "label": "Boys",
+        "value": "61059090",
+        "disabled": false
+    },
+    {
+        "label": "Women",
+        "value": "61061000",
+        "disabled": false
+    },
+    {
+        "label": "Girls",
+        "value": "61069090",
+        "disabled": false
+    },
+    {
+        "label": "Unisex",
+        "value": "61091010",
+        "disabled": false
+    },
+    {
+        "label": "Fan Shop",
+        "value": "61103010",
+        "disabled": false
+    },
+    {
+        "label": "Baby Clothes",
+        "value": "61112010",
+        "disabled": false
+    },
+    {
+        "label": "Handmade baby products",
+        "value": "62092020",
+        "disabled": false
+    },
+    {
+        "label": "Athletic Clothing",
+        "value": "62113220",
+        "disabled": false
+    },
+    {
+        "label": "Bedding & Bath",
+        "value": "63022100",
+        "disabled": false
+    },
+    {
+        "label": "Home Improvement",
+        "value": "63031900",
+        "disabled": false
+    },
+    {
+        "label": "Camping & Hiking",
+        "value": "63069000",
+        "disabled": false
+    },
+    {
+        "label": "Shoe",
+        "value": "64021900",
+        "disabled": false
+    },
+    {
+        "label": "Accessories",
+        "value": "65069100",
+        "disabled": false
+    },
+    {
+        "label": "Handmade kitchenware",
+        "value": "69120000",
+        "disabled": false
+    },
+    {
+        "label": "Jewelry",
+        "value": "71171900",
+        "disabled": false
+    },
+    {
+        "label": "Arts, Crafts & Sewing",
+        "value": "73199000",
+        "disabled": false
+    },
+    {
+        "label": "Patio, Lawn & Garden",
+        "value": "82019000",
+        "disabled": false
+    },
+    {
+        "label": "Automotive Tools & Equipment",
+        "value": "82042000",
+        "disabled": false
+    },
+    {
+        "label": "Power & Hand Tools",
+        "value": "82052000",
+        "disabled": false
+    },
+    {
+        "label": "Hardware",
+        "value": "83024200",
+        "disabled": false
+    },
+    {
+        "label": "Printers & Ink",
+        "value": "84433190",
+        "disabled": false
+    },
+    {
+        "label": "Computers & Tablets",
+        "value": "84713010",
+        "disabled": false
+    },
+    {
+        "label": "Computer Parts & Components",
+        "value": "84718090",
+        "disabled": false
+    },
+    {
+        "label": "Industrial Supplies",
+        "value": "84729000",
+        "disabled": false
+    },
+    {
+        "label": "PC Gaming",
+        "value": "84733090",
+        "disabled": false
+    },
+    {
+        "label": "Kitchen & Bath Fixtures",
+        "value": "84818090",
+        "disabled": false
+    },
+    {
+        "label": "Appliances",
+        "value": "85094000",
+        "disabled": false
+    },
+    {
+        "label": "Call Phones & Accessories",
+        "value": "85177020",
+        "disabled": false
+    },
+    {
+        "label": "Bluetooth & Wireless Speakers",
+        "value": "85182100",
+        "disabled": false
+    },
+    {
+        "label": "Home Audio & Theater",
+        "value": "85182200",
+        "disabled": false
+    },
+    {
+        "label": "Smart Home",
+        "value": "85182900",
+        "disabled": false
+    },
+    {
+        "label": "Headphones",
+        "value": "85183010",
+        "disabled": false
+    },
+    {
+        "label": "Headphones",
+        "value": "85183090",
+        "disabled": false
+    },
+    {
+        "label": "TV & Video",
+        "value": "85219040",
+        "disabled": false
+    },
+    {
+        "label": "Camera, Photo & Video",
+        "value": "85219090",
+        "disabled": false
+    },
+    {
+        "label": "CDs & Vinyl",
+        "value": "85234930",
+        "disabled": false
+    },
+    {
+        "label": "Blu-ray",
+        "value": "85234970",
+        "disabled": false
+    },
+    {
+        "label": "Software",
+        "value": "85234980",
+        "disabled": false
+    },
+    {
+        "label": "Video Games",
+        "value": "85235120",
+        "disabled": false
+    },
+    {
+        "label": "Car\/Vehicle Electronics & GPS",
+        "value": "85269100",
+        "disabled": false
+    },
+    {
+        "label": "Monitors",
+        "value": "85285291",
+        "disabled": false
+    },
+    {
+        "label": "Car Electronics",
+        "value": "85395000",
+        "disabled": false
+    },
+    {
+        "label": "Automotive Parts & Accessories",
+        "value": "87082999",
+        "disabled": false
+    },
+    {
+        "label": "Tires & Wheels",
+        "value": "87089900",
+        "disabled": false
+    },
+    {
+        "label": "Cycling",
+        "value": "87120000",
+        "disabled": false
+    },
+    {
+        "label": "Motercycle & Powersports",
+        "value": "87141000",
+        "disabled": false
+    },
+    {
+        "label": "Wearable Technology",
+        "value": "91021200",
+        "disabled": false
+    },
+    {
+        "label": "Musical Instruments",
+        "value": "92021000",
+        "disabled": false
+    },
+    {
+        "label": "Electronic instruments",
+        "value": "92079000",
+        "disabled": false
+    },
+    {
+        "label": "Handmade furniture",
+        "value": "94016900",
+        "disabled": false
+    },
+    {
+        "label": "Furniture",
+        "value": "94018099",
+        "disabled": false
+    },
+    {
+        "label": "Lamps & Light Fixtures",
+        "value": "94052000",
+        "disabled": false
+    },
+    {
+        "label": "Toys & Games",
+        "value": "95030030",
+        "disabled": false
+    },
+    {
+        "label": "Baby",
+        "value": "95030090",
+        "disabled": false
+    },
+    {
+        "label": "Video Games for Kids",
+        "value": "95049020",
+        "disabled": false
+    },
+    {
+        "label": "Handmade toys",
+        "value": "95049040",
+        "disabled": false
+    },
+    {
+        "label": "Wedding Registry",
+        "value": "95059000",
+        "disabled": false
+    },
+    {
+        "label": "Winter Sports",
+        "value": "95061900",
+        "disabled": false
+    },
+    {
+        "label": "Water Sports",
+        "value": "95062900",
+        "disabled": false
+    },
+    {
+        "label": "Golf",
+        "value": "95063900",
+        "disabled": false
+    },
+    {
+        "label": "Leisure Sports Collectibles",
+        "value": "95065900",
+        "disabled": false
+    },
+    {
+        "label": "Team Sports",
+        "value": "95066900",
+        "disabled": false
+    },
+    {
+        "label": "Scooters, Skateboards & Skates",
+        "value": "95069120",
+        "disabled": false
+    },
+    {
+        "label": "Exercise & Fitness",
+        "value": "95069190",
+        "disabled": false
+    },
+    {
+        "label": "Climbing",
+        "value": "95069900",
+        "disabled": false
+    },
+    {
+        "label": "Hunting & Fishing",
+        "value": "95079000",
+        "disabled": false
+    },
+    {
+        "label": "Janitorial",
+        "value": "96039090",
+        "disabled": false
+    },
+    {
+        "label": "Office & School Supplies",
+        "value": "96081000",
+        "disabled": false
+    },
+    {
+        "label": "Other products",
+        "value": "96151100",
+        "disabled": false
+    },
+    {
+        "label": "Fine Art",
+        "value": "97011000",
+        "disabled": false
+    },
+    {
+        "label": "Artwork",
+        "value": "97020000",
+        "disabled": false
+    }
+]

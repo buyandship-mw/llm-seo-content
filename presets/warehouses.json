@@ -1,0 +1,72 @@
+[
+    {
+        "label": "Portland, U.S. (Tax-free)",
+        "value": "warehouse-4px-uspdx",
+        "disabled": false
+    },
+    {
+        "label": "Los Angeles, U.S.",
+        "value": "warehouse-bnsus-la",
+        "disabled": false
+    },
+    {
+        "label": "Toronto, Canada",
+        "value": "warehouse-bnsca-toronto",
+        "disabled": false
+    },
+    {
+        "label": "Ashford, U.K.",
+        "value": "warehouse-bnsuk-ashford",
+        "disabled": false
+    },
+    {
+        "label": "Milan, Italy",
+        "value": "warehouse-bnsit-milan",
+        "disabled": false
+    },
+    {
+        "label": "Ibaraki, Japan",
+        "value": "warehouse-qs-osaka",
+        "disabled": false
+    },
+    {
+        "label": "Seoul, South Korea",
+        "value": "warehouse-kas-seoul",
+        "disabled": false
+    },
+    {
+        "label": "Shenzhen, China",
+        "value": "warehouse-lht-dongguan",
+        "disabled": false
+    },
+    {
+        "label": "Hong Kong",
+        "value": "warehouse-bns-hk",
+        "disabled": false
+    },
+    {
+        "label": "warehouses.warehouse-bnshk-hk2",
+        "value": "warehouse-bnshk-hk2",
+        "disabled": false
+    },
+    {
+        "label": "Sydney, Australia",
+        "value": "warehouse-bnsau-sydney",
+        "disabled": false
+    },
+    {
+        "label": "Bangkok, Thailand",
+        "value": "warehouse-bnsth-bangkok",
+        "disabled": false
+    },
+    {
+        "label": "Jakarta, Indonesia",
+        "value": "warehouse-bnsid-jakarta",
+        "disabled": false
+    },
+    {
+        "label": "Chiba, Japan (Direct Shipping)",
+        "value": "warehouse-bnsjp-2",
+        "disabled": false
+    }
+]
