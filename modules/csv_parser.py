@@ -1,7 +1,8 @@
 from typing import Optional, List, Tuple, Union, TextIO
 import csv
 
-from modules.models import InputData
+from modules.models import PostData
+from modules.post_data_builder import PostDataBuilder
 
 def load_categories_from_csv(filepath: str) -> List[str]:
     """Loads categories from a single-column CSV file (one category per line)."""
@@ -41,20 +42,15 @@ def load_warehouses_from_csv(filepath: str) -> List[Tuple[str,str]]:
         raise # Or return empty list / handle as appropriate
     return warehouses
 
-def parse_csv_to_input_data(file_input: Union[str, TextIO]) -> List[InputData]:
-    """
-    Parses a CSV file (or a file-like object) to create a list of InputData objects.
+def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostDataBuilder]:
+    """Parse CSV data into a list of :class:`PostDataBuilder` objects.
 
-    Assumptions:
-    - The CSV has a header row.
-    - Header names in the CSV correspond to the field names in InputData.
-    - 'region' and 'item_url' are required columns in the CSV.
-    - Empty values for optional fields will be treated as None.
-    - For 'discount', it attempts to convert to float; if it fails, it's kept as a string.
-    - For 'item_price' and 'item_weight', it attempts to convert to float; if it fails,
-      a warning is printed, and the value becomes None.
+    The CSV headers should correspond to ``PostData`` field names. Any missing
+    optional column will be filled with the default value from the dataclass.
+    Numeric fields are converted when possible. Rows missing ``item_url`` are
+    skipped.
     """
-    input_data_list: List[InputData] = []
+    post_data_list: List[PostDataBuilder] = []
     
     is_file_path = isinstance(file_input, str)
     if is_file_path:
@@ -72,7 +68,7 @@ def parse_csv_to_input_data(file_input: Union[str, TextIO]) -> List[InputData]:
             print("CSV file appears to be empty or has no headers.")
             return []
             
-        required_headers = {'region', 'item_url'}
+        required_headers = {'item_url', 'region'}
         present_headers = set(reader.fieldnames)
         if not required_headers.issubset(present_headers):
             missing = required_headers - present_headers
@@ -86,58 +82,61 @@ def parse_csv_to_input_data(file_input: Union[str, TextIO]) -> List[InputData]:
                     return val.strip() if val and val.strip() else None
 
                 # Required fields
-                region = row_dict['region']
                 item_url = row_dict['item_url']
+                region = row_dict.get('region', '')
 
-                if not region or not region.strip():
-                    print(f"Warning: Row {row_num}: Required field 'region' is empty. Skipping row.")
-                    continue
                 if not item_url or not item_url.strip():
                     print(f"Warning: Row {row_num}: Required field 'item_url' is empty. Skipping row.")
                     continue
-                
-                # Optional float fields
-                item_price_str = get_cleaned_value('item_price')
-                item_price = None
-                if item_price_str:
+                if not region or not region.strip():
+                    print(f"Warning: Row {row_num}: Required field 'region' is empty. Skipping row.")
+                    continue
+                def to_float(val: Optional[str]) -> float:
+                    if val is None:
+                        return 0.0
                     try:
-                        item_price = float(item_price_str)
+                        return float(val)
                     except ValueError:
-                        print(f"Warning: Row {row_num}: Could not convert item_price '{item_price_str}' to float. Using None.")
+                        print(f"Warning: Row {row_num}: Could not convert '{val}' to float. Using 0.0.")
+                        return 0.0
 
-                item_weight_str = get_cleaned_value('item_weight')
-                item_weight = None
-                if item_weight_str:
+                def to_int(val: Optional[str]) -> int:
+                    if val is None:
+                        return 0
                     try:
-                        item_weight = float(item_weight_str)
+                        return int(float(val))
                     except ValueError:
-                        print(f"Warning: Row {row_num}: Could not convert item_weight '{item_weight_str}' to float. Using None.")
-                
-                # Discount field (Union[float, str])
-                discount_str = get_cleaned_value('discount')
-                discount_value: Optional[Union[float, str]] = None
-                if discount_str:
-                    try:
-                        discount_value = float(discount_str)
-                    except ValueError:
-                        discount_value = discount_str # Keep as string if float conversion fails
+                        print(f"Warning: Row {row_num}: Could not convert '{val}' to int. Using 0.")
+                        return 0
 
-                data_item = InputData(
-                    region=region.strip(),
-                    item_url=item_url.strip(),
-                    item_name=get_cleaned_value('item_name'),
-                    post_category=get_cleaned_value('post_category'),
-                    image_url=get_cleaned_value('image_url'),
-                    warehouse_id=get_cleaned_value('warehouse_id'),
-                    item_currency=get_cleaned_value('item_currency'),
-                    item_price=item_price,
-                    discount=discount_value,
-                    item_category=get_cleaned_value('item_category'),
-                    item_weight=item_weight,
-                    payment_method=get_cleaned_value('payment_method'),
-                    site=get_cleaned_value('site')
-                )
-                input_data_list.append(data_item)
+                def to_bool(val: Optional[str]) -> bool:
+                    if val is None:
+                        return False
+                    return val.strip().lower() in {"true", "1", "yes"}
+
+                builder = PostDataBuilder(item_url=item_url.strip(), region=region.strip())
+                builder.update_from_dict({
+                    'title': get_cleaned_value('title') or '',
+                    'content': get_cleaned_value('content') or '',
+                    'user': get_cleaned_value('user') or PostData.user,
+                    'image_url': get_cleaned_value('image_url') or '',
+                    'status': get_cleaned_value('status') or PostData.status,
+                    'is_pinned': to_bool(get_cleaned_value('is_pinned')) if get_cleaned_value('is_pinned') is not None else PostData.is_pinned,
+                    'pinned_end_datetime': to_int(get_cleaned_value('pinned_end_datetime')) if get_cleaned_value('pinned_end_datetime') is not None else PostData.pinned_end_datetime,
+                    'pinned_expire_hours': to_int(get_cleaned_value('pinned_expire_hours')) if get_cleaned_value('pinned_expire_hours') is not None else PostData.pinned_expire_hours,
+                    'disable_comment': to_bool(get_cleaned_value('disable_comment')) if get_cleaned_value('disable_comment') is not None else PostData.disable_comment,
+                    'team_id': get_cleaned_value('team_id') or PostData.team_id,
+                    'category': to_int(get_cleaned_value('category')),
+                    'interest': get_cleaned_value('interest') or '',
+                    'payment_method': get_cleaned_value('payment_method'),
+                    'service': get_cleaned_value('service') or PostData.service,
+                    'discounted': get_cleaned_value('discounted'),
+                    'warehouse': get_cleaned_value('warehouse') or '',
+                    'item_name': get_cleaned_value('item_name') or '',
+                    'item_unit_price': to_float(get_cleaned_value('item_unit_price')),
+                    'item_weight': to_float(get_cleaned_value('item_weight')),
+                })
+                post_data_list.append(builder)
 
             except KeyError as e:
                 # This might occur if a row is severely malformed and DictReader yields unexpected keys,
@@ -153,4 +152,4 @@ def parse_csv_to_input_data(file_input: Union[str, TextIO]) -> List[InputData]:
         if is_file_path:
             file_obj.close()
             
-    return input_data_list
+    return post_data_list

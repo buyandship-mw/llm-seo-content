@@ -1,0 +1,82 @@
+[
+{
+    "label": "Fashion",
+    "value": "fashion",
+    "disabled": false
+},
+{
+    "label": "Recipe",
+    "value": "recipe",
+    "disabled": false
+},
+{
+    "label": "Photography",
+    "value": "photography",
+    "disabled": false
+},
+{
+    "label": "DIY",
+    "value": "diy",
+    "disabled": false
+},
+{
+    "label": "Healthcare",
+    "value": "healthcare",
+    "disabled": false
+},
+{
+    "label": "Home",
+    "value": "home",
+    "disabled": false
+},
+{
+    "label": "Beauty",
+    "value": "beauty",
+    "disabled": false
+},
+{
+    "label": "Sports",
+    "value": "sports",
+    "disabled": false
+},
+{
+    "label": "Baby care",
+    "value": "baby-care",
+    "disabled": false
+},
+{
+    "label": "Pet",
+    "value": "pet",
+    "disabled": false
+},
+{
+    "label": "Music",
+    "value": "music",
+    "disabled": false
+},
+{
+    "label": "Electronics",
+    "value": "electronics",
+    "disabled": false
+},
+{
+    "label": "Stationery",
+    "value": "stationery",
+    "disabled": false
+},
+{
+    "label": "Vehicle",
+    "value": "vehicle",
+    "disabled": false
+},
+{
+    "label": "Art",
+    "value": "art",
+    "disabled": false
+},
+{
+    "label": "Entertainment",
+    "value": "entertainment",
+    "disabled": false
+}
+]

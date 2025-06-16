@@ -2,7 +2,7 @@
 import json
 from typing import Dict, List, Optional, Any, Tuple
 
-from modules.models import InputData, PostData
+from modules.models import PostData
 from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your client
 
 # --- Module Constants ---
@@ -72,7 +72,7 @@ def _get_conversion_rate(
 
 
 def _build_comprehensive_llm_prompt(
-    client_input: InputData,
+    client_input: PostData,
     available_bns_categories: List[str],
     valid_warehouse_ids_for_mcq: List[str] # Just the IDs for the prompt
 ) -> str:
@@ -226,7 +226,7 @@ def _invoke_comprehensive_llm(
 
 def _finalize_data_from_llm_response(
     llm_output: Dict[str, Any],
-    original_client_input: InputData,
+    original_client_input: PostData,
     available_bns_categories: List[str],
     valid_warehouses: List[Tuple[str, str]], # Full list with (id, currency_code)
     currency_conversion_rates: Dict[str, Dict[str, float]]
@@ -360,7 +360,7 @@ def _finalize_data_from_llm_response(
 
 # --- Public API Function ---
 def generate_post(
-    client_input: InputData,
+    client_input: PostData,
     available_bns_categories: List[str],
     valid_warehouses: List[Tuple[str, str]],
     currency_conversion_rates: Dict[str, Dict[str, float]],
@@ -415,19 +415,18 @@ if __name__ == '__main__':
     print("--- Post Generator Example ---")
 
     # Dummy data for testing
-    client_input = InputData(
-        region="HK",
+    client_input = PostData(
+        title="",
+        content="",
+        image_url="",
+        category=0,
+        interest="",
+        warehouse="",
         item_url="https://www.lush.com/uk/en/p/wasabi-shan-kui-shampoo?queryId=a9d530215c36459b66438cd919d05285",
-        # item_name="Doshisha Super Gorilla Calf Care",
-        # post_category="sports",
-        # warehouse_id="warehouse-qs-osaka",
-        # item_currency="JPY",
-        # item_price=6578,
-        # discount=None,
-        # item_category="Accessories",
-        # item_weight=1,
-        # payment_method=None,
-        # site="hk"
+        item_name="",
+        item_unit_price=0.0,
+        item_weight=0.0,
+        region="HK",
     )
 
     available_cats = ["sports", "healthcare", "fashion", "home", "recipe",
