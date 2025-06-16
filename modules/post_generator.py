@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from modules.models import PostData, Category, Warehouse
 from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your client
 from modules.csv_parser import load_forex_rates_from_json
+from utils.currency import convert_price
 
 # --- Module Constants ---
 MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
@@ -48,59 +49,6 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
 DEFAULT_FALLBACK_IMAGE_URL = "https://example.com/default_item_image.png"
 
 # --- Internal Helper Functions ---
-
-def _get_conversion_rate(
-    from_currency: str,
-    to_currency: str,
-    rates_table: Dict[str, Dict[str, float]]
-) -> Optional[float]:
-    """Helper to get conversion rate from the provided table."""
-    from_currency = from_currency.upper()
-    to_currency = to_currency.upper()
-
-    if from_currency == to_currency:
-        return 1.0
-    if from_currency in rates_table and to_currency in rates_table[from_currency]:
-        return rates_table[from_currency][to_currency]
-
-    # Try inverse if direct not found (e.g., table has USD:EUR but we need EUR:USD)
-    if to_currency in rates_table and from_currency in rates_table[to_currency]:
-        inverse_rate = rates_table[to_currency][from_currency]
-        if inverse_rate != 0:  # Avoid division by zero
-            return 1.0 / inverse_rate
-
-    # Attempt conversion via USD as an intermediary
-    usd = "USD"
-
-    def _rate_to_usd(cur: str) -> Optional[float]:
-        if cur == usd:
-            return 1.0
-        if cur in rates_table and usd in rates_table[cur]:
-            return rates_table[cur][usd]
-        if usd in rates_table and cur in rates_table[usd]:
-            inv = rates_table[usd][cur]
-            if inv != 0:
-                return 1.0 / inv
-        return None
-
-    def _rate_from_usd(target: str) -> Optional[float]:
-        if target == usd:
-            return 1.0
-        if usd in rates_table and target in rates_table[usd]:
-            return rates_table[usd][target]
-        if target in rates_table and usd in rates_table[target]:
-            inv = rates_table[target][usd]
-            if inv != 0:
-                return 1.0 / inv
-        return None
-
-    to_usd = _rate_to_usd(from_currency)
-    from_usd = _rate_from_usd(to_currency)
-    if to_usd is not None and from_usd is not None:
-        return to_usd * from_usd
-
-    print(f"Warning: Conversion rate from {from_currency} to {to_currency} not found in table.")
-    return None
 
 
 def _choose_better_name(scraped: Optional[str], llm_name: Optional[str]) -> str:
@@ -438,9 +386,14 @@ def _finalize_data_from_llm_response(
         if source_currency == target_warehouse_currency:
             final_item_price_converted = source_price
         else:
-            rate = _get_conversion_rate(source_currency, target_warehouse_currency, currency_conversion_rates)
-            if rate is not None:
-                final_item_price_converted = round(source_price * rate, 2)
+            converted = convert_price(
+                source_price,
+                source_currency,
+                target_warehouse_currency,
+                currency_conversion_rates,
+            )
+            if converted is not None:
+                final_item_price_converted = converted
             else:
                 print(
                     f"Warning: Conversion failed from {source_currency} to {target_warehouse_currency}. Using 0.0."
