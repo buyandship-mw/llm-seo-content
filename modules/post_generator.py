@@ -10,9 +10,9 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
     "HK": [{
         "item_url": "https://www.target.com/p/fujifilm-instax-mini-12-camera/-/A-88743864",
         "item_name": "Fujifilm Instax Mini 12 Camera",
-        "warehouse_id": "warehouse-4px-uspdx",
-        "post_title": "📸 Fujifilm Instax Mini 12",
-        "post_content":
+        "warehouse": "warehouse-4px-uspdx",
+        "title": "📸 Fujifilm Instax Mini 12",
+        "content":
             """
 - 得意設計＋超易用
 - 自動曝光，唔使調光
@@ -27,9 +27,9 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
     }, {
         "item_url": "https://www.gourmandise.jp/view/item/000000009318",
         "item_name": "Chiikawa 完全無線立體聲耳機",
-        "warehouse_id": "warehouse-qs-osaka",
-        "post_title": "🎧 Chiikawa 完全無線立體聲耳機",
-        "post_content":
+        "warehouse": "warehouse-qs-osaka",
+        "title": "🎧 Chiikawa 完全無線立體聲耳機",
+        "content":
             """
 - 可愛嘅 Chiikawa 角色設計
 - 耳塞式設計，確保音質清晰
@@ -74,7 +74,7 @@ def _get_conversion_rate(
 def _build_comprehensive_llm_prompt(
     client_input: PostData,
     available_bns_categories: List[Category],
-    valid_warehouse_ids_for_mcq: List[str] # Just the IDs for the prompt
+    valid_warehouses_for_mcq: List[str]  # Just the warehouse codes for the prompt
 ) -> str:
     prompt_lines = []
     category_labels = [c.label for c in available_bns_categories]
@@ -95,12 +95,12 @@ def _build_comprehensive_llm_prompt(
         "{\n"
         '  "item_name": "string", // Should be in the primary language of the target post region\n' # Added comment
         '  "image_url": "string_url | null",\n'
-        '  "post_category": "string_chosen_from_provided_list",\n'
-        '  "warehouse_id": "string_chosen_from_provided_list_or_clients_value",\n'
+        '  "category": "string_chosen_from_provided_list",\n'
+        '  "warehouse": "string_chosen_from_provided_list_or_clients_value",\n'
         '  "item_currency": "string_3_letter_code_as_found_on_site",\n'
         '  "item_price_in_item_currency": "float_as_found_on_site",\n'
-        '  "post_title": "string", // Should be in the primary language of the target post region\n' # Added comment
-        '  "post_content": "string_plain_text_no_markdown" // Should be in the primary language of the target post region\n' # Added comment
+        '  "title": "string", // Should be in the primary language of the target post region\n' # Added comment
+        '  "content": "string_plain_text_no_markdown" // Should be in the primary language of the target post region\n' # Added comment
         "}"
     )
     prompt_lines.append("\n--- CLIENT-PROVIDED DATA & INSTRUCTIONS ---")
@@ -123,41 +123,45 @@ def _build_comprehensive_llm_prompt(
             "Place this definitive URL in the 'image_url' field. If no suitable image is found, use null."
         )
 
-    # warehouse_id (MCQ)
-    if client_input.warehouse_id:
-        prompt_lines.append(f"- Use '{client_input.warehouse_id}' for the 'warehouse_id' field in your JSON output.")
+    # warehouse (MCQ)
+    if client_input.warehouse:
+        prompt_lines.append(f"- Use '{client_input.warehouse}' for the 'warehouse' field in your JSON output.")
     else:
         prompt_lines.append(
             f"- Determine the primary country this item is sold from via web search on {client_input.item_url}."
         )
         prompt_lines.append(
-            f"- Then, from the following list of valid warehouse IDs: {valid_warehouse_ids_for_mcq}, select the one whose country is the same as or geographically closest to the country the item is sold from. Place your choice in the 'warehouse_id' field."
+            f"- Then, from the following list of valid warehouses: {valid_warehouses_for_mcq}, select the one whose country is the same as or geographically closest to the country the item is sold from. Place your choice in the 'warehouse' field."
         )
 
-    # post_category (MCQ)
-    if client_input.post_category:
-        prompt_lines.append(f"- Use '{client_input.post_category}' for the 'post_category' field in your JSON output.")
+    # category (MCQ)
+    if client_input.category:
+        existing_label = next(
+            (c.label for c in available_bns_categories if c.value == client_input.category),
+            None,
+        )
+        if existing_label:
+            prompt_lines.append(
+                f"- Use '{existing_label}' for the 'category' field in your JSON output."
+            )
+        else:
+            prompt_lines.append(
+                f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'category' field."
+            )
     else:
         prompt_lines.append(
-            f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'post_category' field."
+            f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'category' field."
         )
 
     # item_currency & item_price_in_item_currency
-    if client_input.item_price is not None and client_input.item_currency:
-        client_curr_for_prompt = client_input.item_currency.upper()
-        prompt_lines.append(
-            f"- Client provided price: {client_input.item_price} {client_curr_for_prompt}. "
-            f"Place the numeric price ({client_input.item_price}) as a float in 'item_price_in_item_currency' and the 3-letter currency code in 'item_currency'."
-        )
-    else:
-        prompt_lines.append(
-            f"- Determine the item's price from '{client_input.item_url}'. Extract the numeric price value and its currency. "
-            "Convert the currency to its standard three-letter code (e.g., USD, EUR, JPY). "
-            "Place the numeric price as a float in 'item_price_in_item_currency' and the 3-letter currency code in 'item_currency'. "
-            "If price is not found, use 0.0 for price and 'N/A' for currency."
-        )
+    prompt_lines.append(
+        f"- Determine the item's price from '{client_input.item_url}'. Extract the numeric price value and its currency. "
+        "Convert the currency to its standard three-letter code (e.g., USD, EUR, JPY). "
+        "Place the numeric price as a float in 'item_price_in_item_currency' and the 3-letter currency code in 'item_currency'. "
+        "If price is not found, use 0.0 for price and 'N/A' for currency."
+    )
     
-    # post_title & post_content
+    # title & content
     master_examples_list_for_region = MASTER_POST_EXAMPLES.get(client_input.region.upper())
     if not master_examples_list_for_region: # Check if the list is None or empty
         raise NotImplementedError(
@@ -171,7 +175,7 @@ def _build_comprehensive_llm_prompt(
         
         # Update language guidance to refer to plural examples
         language_guidance = (
-            f"Generate the 'post_title' and 'post_content' directly in the primary language "
+            f"Generate the 'title' and 'content' directly in the primary language "
             f"of the target region ('{client_input.region}'), matching the language style, tone, "
             f"and structure demonstrated in the provided master examples."
         )
@@ -179,14 +183,14 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append(
         "\n--- CONTENT GENERATION (TITLE & CONTENT) ---" # Updated section title for clarity
         f"\nBased on all information (client-provided and your findings from web search), "
-        "generate 'post_title' (string) and 'post_content' (string, plain text, NO MARKDOWN formatting)."
+        "generate 'title' (string) and 'content' (string, plain text, NO MARKDOWN formatting)."
     )
     prompt_lines.append(
         # Updated wording to refer to "examples" (plural)
-        f"The style, tone, and structure for 'post_title' and 'post_content' should be closely guided by the master examples "
+        f"The style, tone, and structure for 'title' and 'content' should be closely guided by the master examples "
         f"provided below for the {client_input.region} region. "
         f"{language_guidance} " # language_guidance already refers to plural examples
-        f"The 'post_content' should generally have two main sections based on your web search: "
+        f"The 'content' should generally have two main sections based on your web search: "
         "1. a product introduction (highlighting key features/benefits), and "
         "2. a brief summary of user reviews or public sentiment."
     )
@@ -197,7 +201,10 @@ def _build_comprehensive_llm_prompt(
         f"{master_examples_json_str}"
     )
 
-    return "\n\n".join(prompt_lines)
+    prompt = "\n\n".join(prompt_lines)
+    print(prompt)
+
+    return prompt
 
 def _invoke_comprehensive_llm(
     user_prompt: str,
@@ -213,9 +220,9 @@ def _invoke_comprehensive_llm(
         if isinstance(parsed_json, dict):
             # Validate that all required keys are present in LLM response
             required_keys = [
-                "item_name", "image_url", "post_category", "warehouse_id",
+                "item_name", "image_url", "category", "warehouse",
                 "item_currency", "item_price_in_item_currency",
-                "post_title", "post_content"
+                "title", "content"
             ]
             missing_keys = [key for key in required_keys if key not in parsed_json]
             if missing_keys:
@@ -239,22 +246,22 @@ def _finalize_data_from_llm_response(
     final_data["item_name"] = "Item Name Unavailable"
     final_data["image_url"] = DEFAULT_FALLBACK_IMAGE_URL
     category_labels = [c.label for c in available_bns_categories]
-    warehouse_ids_only = [w.value for w in valid_warehouses]
+    warehouse_codes_only = [w.value for w in valid_warehouses]
 
-    final_data["post_category"] = category_labels[0] if category_labels else "General"
-    final_data["warehouse_id"] = (warehouse_ids_only[0] if warehouse_ids_only else "UNKNOWN_WAREHOUSE")
-    # Price/Currency will be determined below based on warehouse
-    final_data["item_price"] = 0.0
-    final_data["item_currency"] = "N/A" # This will be warehouse currency
-    final_data["post_title"] = "Title Generation Failed"
-    final_data["post_content"] = "Content Generation Failed. Please check item URL."
+    final_data["category"] = (
+        category_labels[0] if category_labels else 0
+    )
+    final_data["warehouse"] = (
+        warehouse_codes_only[0] if warehouse_codes_only else "UNKNOWN_WAREHOUSE"
+    )
+    final_data["item_unit_price"] = 0.0
+    final_data["title"] = "Title Generation Failed"
+    final_data["content"] = "Content Generation Failed. Please check item URL."
 
     # Optional fields from client input, passed through
-    final_data["discount"] = original_client_input.discount
-    final_data["item_category"] = original_client_input.item_category
+    final_data["discounted"] = original_client_input.discounted
     final_data["item_weight"] = original_client_input.item_weight
     final_data["payment_method"] = original_client_input.payment_method
-    final_data["site"] = original_client_input.site
 
     # --- Apply LLM output and client overrides ---
 
@@ -271,22 +278,27 @@ def _finalize_data_from_llm_response(
         final_data["image_url"] = original_client_input.image_url
     # else it keeps DEFAULT_FALLBACK_IMAGE_URL
 
-    # 3. warehouse_id & target_warehouse_currency
-    valid_warehouse_ids_only = warehouse_ids_only
+    # 3. warehouse & target_warehouse_currency
+    valid_warehouse_codes_only = warehouse_codes_only
     target_warehouse_currency = "N/A"
 
-    if original_client_input.warehouse_id and original_client_input.warehouse_id in valid_warehouse_ids_only:
-        final_data["warehouse_id"] = original_client_input.warehouse_id
-    elif "warehouse_id" in llm_output and llm_output["warehouse_id"] in valid_warehouse_ids_only:
-        final_data["warehouse_id"] = str(llm_output["warehouse_id"])
-    elif valid_warehouse_ids_only: # Default to first valid if others fail
-        print(f"Warning: Client/LLM warehouse_id invalid or missing. Defaulting from valid list.")
-        final_data["warehouse_id"] = valid_warehouse_ids_only[0]
+    if (
+        original_client_input.warehouse
+        and original_client_input.warehouse in valid_warehouse_codes_only
+    ):
+        final_data["warehouse"] = original_client_input.warehouse
+    elif "warehouse" in llm_output and llm_output["warehouse"] in valid_warehouse_codes_only:
+        final_data["warehouse"] = str(llm_output["warehouse"])
+    elif valid_warehouse_codes_only: # Default to first valid if others fail
+        print(
+            f"Warning: Client/LLM warehouse invalid or missing. Defaulting from valid list."
+        )
+        final_data["warehouse"] = valid_warehouse_codes_only[0]
     # else it keeps "UNKNOWN_WAREHOUSE" (or previous default)
 
-    # Find currency for the chosen warehouse_id
+    # Find currency for the chosen warehouse
     for wh in valid_warehouses:
-        if wh.value == final_data["warehouse_id"]:
+        if wh.value == final_data["warehouse"]:
             target_warehouse_currency = wh.currency.upper()
             break
 
@@ -295,39 +307,36 @@ def _finalize_data_from_llm_response(
         print(f"Warning: Could not determine target warehouse currency reliably, defaulting to {target_warehouse_currency}")
 
 
-    # 4. post_category
-    if original_client_input.post_category and original_client_input.post_category in category_labels:
-        final_data["post_category"] = original_client_input.post_category
-    elif "post_category" in llm_output and llm_output["post_category"] in category_labels:
-        final_data["post_category"] = str(llm_output["post_category"])
-    elif category_labels:  # Default to first valid if others fail
-        print(f"Warning: Client/LLM post_category invalid or missing. Defaulting from valid list.")
-        final_data["post_category"] = category_labels[0]
-    # else it keeps "General" (or previous default)
+    # 4. category (convert label to numeric value)
+    label_to_value = {c.label: c.value for c in available_bns_categories}
+    values = set(label_to_value.values())
+    if original_client_input.category and original_client_input.category in values:
+        final_data["category"] = original_client_input.category
+    elif "category" in llm_output and llm_output["category"] in label_to_value:
+        final_data["category"] = label_to_value[llm_output["category"]]
+    elif values:
+        print(
+            "Warning: Client/LLM category invalid or missing. Defaulting from valid list."
+        )
+        final_data["category"] = next(iter(values))
 
-    # 5. Determine source_price and source_currency (from LLM or client)
+    # 5. Determine source_price and source_currency (from LLM)
     llm_price_val = llm_output.get("item_price_in_item_currency")
     llm_currency_val = llm_output.get("item_currency")
 
     source_price: Optional[float] = None
-    source_currency: Optional[str] = None # This is currency AS FOUND ON SITE
+    source_currency: Optional[str] = None  # Currency as found on site
 
-    if original_client_input.item_price is not None and original_client_input.item_currency:
-        source_price = original_client_input.item_price
-        source_currency = original_client_input.item_currency.upper()
-        if not (isinstance(source_currency, str) and len(source_currency) == 3):
-            print(f"Warning: Client provided currency '{source_currency}' not valid 3-letter code. Price conversion may fail.")
-            source_currency = None # Invalidate if not 3-letter
-    elif isinstance(llm_price_val, (float, int)) and \
-         isinstance(llm_currency_val, str) and len(llm_currency_val) == 3:
+    if isinstance(llm_price_val, (float, int)) and isinstance(llm_currency_val, str) and len(llm_currency_val) == 3:
         source_price = float(llm_price_val)
         source_currency = llm_currency_val.upper()
     else:
-        print(f"Warning: Valid source price/currency not found from client or LLM. LLM provided price: '{llm_price_val}', currency: '{llm_currency_val}'.")
+        print(
+            f"Warning: Valid source price/currency not found from LLM. LLM provided price: '{llm_price_val}', currency: '{llm_currency_val}'."
+        )
 
     # 6. Perform Price Conversion to target_warehouse_currency
-    final_item_price_converted = 0.0 # Default price
-    final_item_currency_for_post = target_warehouse_currency if target_warehouse_currency != "N/A" else "N/A"
+    final_item_price_converted = 0.0  # Default price
 
     if source_price is not None and source_currency and target_warehouse_currency not in ["N/A", None]:
         if source_currency == target_warehouse_currency:
@@ -336,28 +345,25 @@ def _finalize_data_from_llm_response(
             rate = _get_conversion_rate(source_currency, target_warehouse_currency, currency_conversion_rates)
             if rate is not None:
                 final_item_price_converted = round(source_price * rate, 2)
-            else: # Conversion rate not found
-                print(f"Warning: Conversion failed from {source_currency} to {target_warehouse_currency}. Using original price if possible, or 0.0.")
-                # If conversion fails, use original price and original currency IF that currency is globally acceptable
-                # For now, sticking to the rule: price MUST be in warehouse currency. If conversion fails, it's 0.0.
-                # A different business rule might be to use original price/currency if conversion fails.
+            else:
+                print(
+                    f"Warning: Conversion failed from {source_currency} to {target_warehouse_currency}. Using 0.0."
+                )
                 final_item_price_converted = 0.0
-                # final_item_currency_for_post remains target_warehouse_currency (or N/A if target was N/A)
-    elif source_price is not None and source_currency : # No valid target_warehouse_currency or conversion failed.
-        print(f"Warning: Target warehouse currency is '{target_warehouse_currency}'. Using 0.0 as price in target currency as conversion not possible/meaningful.")
-        final_item_price_converted = 0.0 # Price in target currency cannot be determined
-        # final_item_currency_for_post remains target_warehouse_currency
-    # else source price itself is unknown, so price remains 0.0
+    else:
+        print(
+            f"Warning: Target warehouse currency is '{target_warehouse_currency}'. Using 0.0 as price in target currency."
+        )
+        final_item_price_converted = 0.0
 
-    final_data["item_price"] = final_item_price_converted
-    final_data["item_currency"] = final_item_currency_for_post
+    final_data["item_unit_price"] = final_item_price_converted
 
 
-    # 7. post_title & post_content from LLM
-    if llm_output.get("post_title"):
-        final_data["post_title"] = str(llm_output.get("post_title"))
-    if llm_output.get("post_content"): # Ensure plain text
-        final_data["post_content"] = str(llm_output.get("post_content"))
+    # 7. title & content from LLM
+    if llm_output.get("title"):
+        final_data["title"] = str(llm_output.get("title"))
+    if llm_output.get("content"):
+        final_data["content"] = str(llm_output.get("content"))
 
     return final_data
 
@@ -373,12 +379,12 @@ def generate_post(
 ) -> PostData:
     print(f"INFO: Starting post generation for URL: {client_input.item_url}, Region: {client_input.region}")
 
-    valid_warehouse_ids_for_prompt = [wh.value for wh in valid_warehouses]
+    valid_warehouses_for_prompt = [wh.value for wh in valid_warehouses]
 
     user_prompt = _build_comprehensive_llm_prompt(
         client_input,
         available_bns_categories,
-        valid_warehouse_ids_for_prompt
+        valid_warehouses_for_prompt
     )
 
     llm_response_dict = _invoke_comprehensive_llm(user_prompt, ai_client, model)
@@ -392,25 +398,11 @@ def generate_post(
             currency_conversion_rates
         )
         
-        # Ensure all required fields for PostData have non-None, type-correct values
-        # The _finalize_data_from_llm_response should already set defaults.
-        return PostData(
-            region=client_input.region,
-            item_url=client_input.item_url,
-            item_name=str(finalized_data_dict.get("item_name", "Default Item Name")),
-            image_url=str(finalized_data_dict.get("image_url", DEFAULT_FALLBACK_IMAGE_URL)),
-            post_category=str(finalized_data_dict.get("post_category", "General")),
-            warehouse_id=str(finalized_data_dict.get("warehouse_id", "UNKNOWN_WAREHOUSE")),
-            item_currency=str(finalized_data_dict.get("item_currency", "N/A")),
-            item_price=float(finalized_data_dict.get("item_price", 0.0)),
-            post_title=str(finalized_data_dict.get("post_title", "Default Title")),
-            post_content=str(finalized_data_dict.get("post_content", "Default Content.")),
-            discount=finalized_data_dict.get("discount"),
-            item_category=finalized_data_dict.get("item_category"),
-            item_weight=finalized_data_dict.get("item_weight"),
-            payment_method=finalized_data_dict.get("payment_method"),
-            site=finalized_data_dict.get("site")
-        )
+        from dataclasses import asdict
+
+        base_data = asdict(client_input)
+        base_data.update(finalized_data_dict)
+        return PostData(**base_data)
     else:
         raise RuntimeError("ERROR: LLM response was invalid or call failed.")
 
@@ -443,7 +435,7 @@ if __name__ == '__main__':
         ], 1)
     ]
     
-    # warehouse_id, warehouse_currency_code
+    # warehouse, warehouse_currency_code
     warehouses = [
         Warehouse(label="", value=w_id, currency=cur)
         for w_id, cur in [
