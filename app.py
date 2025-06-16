@@ -5,6 +5,7 @@ from modules.csv_parser import (
     load_categories_from_json,
     load_interests_from_json,
     load_warehouses_from_json,
+    load_forex_rates_from_json,
     parse_csv_to_post_data,
 )
 from modules.csv_writer import write_post_data_to_csv
@@ -15,15 +16,9 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CATEGORIES_FILE = os.path.join(CURRENT_DIR, "presets/categories.json")
 INTERESTS_FILE = os.path.join(CURRENT_DIR, "presets/interests.json")
 WAREHOUSES_FILE = os.path.join(CURRENT_DIR, "presets/warehouses.json")
+FOREX_RATES_FILE = os.path.join(CURRENT_DIR, "presets/forex_rates.json")
 INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test.csv")
 OUTPUT_POST_DATA_FILE = os.path.join(CURRENT_DIR, "output.csv")
-
-rates = {
-    "USD": {"GBP": 0.80, "EUR": 0.92, "HKD": 7.80, "JPY": 143.26},
-    "GBP": {"USD": 1.25, "EUR": 1.15, "HKD": 9.75, "JPY": 194.42},
-    "EUR": {"USD": 1.08, "GBP": 0.87, "HKD": 8.45, "JPY": 163.61},
-    "HKD": {"USD": 0.13, "GBP": 0.10, "EUR": 0.12, "JPY": 18.26},
-}
 
 def run_pipeline():
     """Main function to run the post generation pipeline."""
@@ -40,7 +35,10 @@ def run_pipeline():
         print(f"Loading warehouses from: {WAREHOUSES_FILE}")
         warehouses = load_warehouses_from_json(WAREHOUSES_FILE)
         print(warehouses)
-        
+
+        print(f"Loading forex rates from: {FOREX_RATES_FILE}")
+        rates = load_forex_rates_from_json(FOREX_RATES_FILE)
+
         print(f"Loading input data from: {INPUT_DATA_FILE}")
         input_builders = parse_csv_to_post_data(INPUT_DATA_FILE)
         input_items = [b.build() for b in input_builders]
