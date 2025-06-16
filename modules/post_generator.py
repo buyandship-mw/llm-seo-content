@@ -3,7 +3,7 @@ import json
 import os
 from typing import Dict, List, Optional, Any, Tuple
 
-from modules.models import PostData, Category, Warehouse
+from modules.models import PostData, Category, Warehouse, Interest
 from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your client
 from modules.csv_parser import load_forex_rates_from_json
 from utils.currency import convert_price
@@ -70,15 +70,18 @@ def _choose_better_name(scraped: Optional[str], llm_name: Optional[str]) -> str:
 def _build_comprehensive_llm_prompt(
     client_input: PostData,
     available_bns_categories: List[Category],
+    available_interests: List[Interest],
     valid_warehouses_for_mcq: List[str]  # Just the warehouse codes for the prompt
 ) -> Tuple[str, List[str]]:
     prompt_lines = []
     category_labels = [c.label for c in available_bns_categories]
+    interest_labels = [i.label for i in available_interests]
 
     # --- Lists the model can choose from (moved to top) ---
     prompt_lines.append("### SELECTABLE OPTIONS")
     prompt_lines.append(f"Warehouses: {valid_warehouses_for_mcq}")
     prompt_lines.append(f"Categories: {category_labels}")
+    prompt_lines.append(f"Interests: {interest_labels}")
     prompt_lines.append(
         "You may ONLY choose values from these lists. Never invent new warehouses or categories."
     )
@@ -96,7 +99,7 @@ def _build_comprehensive_llm_prompt(
         "3. Extract each required data field. If information is unavailable, use these fallbacks: 0.0 for source_price and 'N/A' for source_currency."
     )
     prompt_lines.append(
-        "4. Select the most suitable category and warehouse from the lists above (never create new values)."
+        "4. Select the most suitable category, warehouse, and interest from the lists above (never create new values)."
     )
     prompt_lines.append(
         "5. Generate region-specific 'title' and 'content' matching the tone and structure of the provided examples."
@@ -111,7 +114,7 @@ def _build_comprehensive_llm_prompt(
         "Your entire response MUST be exactly one JSON object with these keys. Use the fallbacks above whenever a value can't be found."
     )
 
-    output_fields = ["item_name", "category", "warehouse", "title", "content"]
+    output_fields = ["item_name", "category", "interest", "warehouse", "title", "content"]
     if not client_input.source_price:
         output_fields.append("source_price")
     if not client_input.source_currency:
@@ -121,6 +124,7 @@ def _build_comprehensive_llm_prompt(
         "item_name": '  "item_name": "string"',
         "category": '  "category": "string_from_list"',
         "warehouse": '  "warehouse": "string_from_list_or_client_value"',
+        "interest": '  "interest": "string_from_list"',
         "source_currency": '  "source_currency": "3_letter_code_or_\"N/A\""',
         "source_price": '  "source_price": "float"',
         "title": '  "title": "string"',
@@ -134,7 +138,7 @@ def _build_comprehensive_llm_prompt(
     output_lines.append("}")
     prompt_lines.append("".join(output_lines))
     prompt_lines.append(
-        "Reminder: Only use the provided lists for category and warehouse. If uncertain, default to the first list item."
+        "Reminder: Only use the provided lists for category, interest, and warehouse. If uncertain, default to the first list item."
     )
 
     prompt_lines.append("\n--- CLIENT-PROVIDED DATA & INSTRUCTIONS ---")
@@ -183,6 +187,26 @@ def _build_comprehensive_llm_prompt(
     else:
         prompt_lines.append(
             f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'category' field."
+        )
+
+    # interest (MCQ)
+    interest_labels_str = ', '.join(interest_labels)
+    if client_input.interest:
+        existing_interest_label = next(
+            (i.label for i in available_interests if i.value == client_input.interest),
+            None,
+        )
+        if existing_interest_label:
+            prompt_lines.append(
+                f"- Use '{existing_interest_label}' for the 'interest' field in your JSON output."
+            )
+        else:
+            prompt_lines.append(
+                f"- From the following list of valid interests: {interest_labels}, select the single most appropriate interest for the item. Place your choice in the 'interest' field."
+            )
+    else:
+        prompt_lines.append(
+            f"- From the following list of valid interests: {interest_labels}, select the single most appropriate interest for the item. Place your choice in the 'interest' field."
         )
 
     # source_currency & source_price
@@ -270,6 +294,7 @@ def _finalize_data_from_llm_response(
     llm_output: Dict[str, Any],
     original_client_input: PostData,
     available_bns_categories: List[Category],
+    available_interests: List[Interest],
     valid_warehouses: List[Warehouse],
     currency_conversion_rates: Dict[str, Dict[str, float]]
 ) -> Dict[str, Any]:
@@ -281,9 +306,13 @@ def _finalize_data_from_llm_response(
     final_data["image_url"] = DEFAULT_FALLBACK_IMAGE_URL
     category_labels = [c.label for c in available_bns_categories]
     warehouse_codes_only = [w.value for w in valid_warehouses]
+    interest_labels_only = [i.label for i in available_interests]
 
     final_data["category"] = (
         category_labels[0] if category_labels else 0
+    )
+    final_data["interest"] = (
+        interest_labels_only[0] if interest_labels_only else ""
     )
     final_data["warehouse"] = (
         warehouse_codes_only[0] if warehouse_codes_only else "UNKNOWN_WAREHOUSE"
@@ -353,7 +382,20 @@ def _finalize_data_from_llm_response(
         )
         final_data["category"] = next(iter(values))
 
-    # 5. Determine source_price and source_currency (from client input or LLM)
+    # 5. interest (convert label to value)
+    label_to_interest_value = {i.label: i.value for i in available_interests}
+    interest_values = set(label_to_interest_value.values())
+    if original_client_input.interest and original_client_input.interest in interest_values:
+        final_data["interest"] = original_client_input.interest
+    elif "interest" in llm_output and llm_output["interest"] in label_to_interest_value:
+        final_data["interest"] = label_to_interest_value[llm_output["interest"]]
+    elif interest_values:
+        print(
+            "Warning: Client/LLM interest invalid or missing. Defaulting from valid list."
+        )
+        final_data["interest"] = next(iter(interest_values))
+
+    # 6. Determine source_price and source_currency (from client input or LLM)
     source_price: Optional[float] = None
     source_currency: Optional[str] = None  # Currency as found on site
 
@@ -421,6 +463,7 @@ def _finalize_data_from_llm_response(
 def generate_post(
     client_input: PostData,
     available_bns_categories: List[Category],
+    available_interests: List[Interest],
     valid_warehouses: List[Warehouse],
     currency_conversion_rates: Dict[str, Dict[str, float]],
     ai_client: OpenAIClient,
@@ -433,6 +476,7 @@ def generate_post(
     user_prompt, expected_keys = _build_comprehensive_llm_prompt(
         client_input,
         available_bns_categories,
+        available_interests,
         valid_warehouses_for_prompt
     )
 
@@ -443,6 +487,7 @@ def generate_post(
             llm_response_dict,
             client_input,
             available_bns_categories,
+            available_interests,
             valid_warehouses,
             currency_conversion_rates
         )
@@ -485,6 +530,15 @@ if __name__ == '__main__':
             "beauty", "pet"
         ], 1)
     ]
+
+    available_interests = [
+        Interest(label=label, value=val)
+        for label, val in [
+            ("Fashion", "fashion"),
+            ("Recipe", "recipe"),
+            ("Photography", "photography")
+        ]
+    ]
     
     # warehouse, warehouse_currency_code
     warehouses = [
@@ -509,6 +563,14 @@ if __name__ == '__main__':
     stub_ai_client = OpenAIClient()
 
     print("\n--- Generating Post for Sample Input ---")
-    post1 = generate_post(client_input, available_cats, warehouses, rates, stub_ai_client, "gpt-4.1-mini")
+    post1 = generate_post(
+        client_input,
+        available_cats,
+        available_interests,
+        warehouses,
+        rates,
+        stub_ai_client,
+        "gpt-4.1-mini"
+    )
     print("\n--- Final PostData ---")
     print(json.dumps(post1.__dict__, indent=2, ensure_ascii=False))

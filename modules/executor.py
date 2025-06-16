@@ -1,7 +1,7 @@
 from typing import Dict, List
 
 from dataclasses import asdict
-from modules.models import PostData, Category, Warehouse
+from modules.models import PostData, Category, Warehouse, Interest
 from modules.openai_client import OpenAIClient
 from modules.post_generator import generate_post
 from modules.scraper import scrape_and_extract
@@ -10,6 +10,7 @@ from modules.post_data_builder import PostDataBuilder
 def process_batch_input_data(
     input_data_list: List[PostData],
     available_categories: List[Category],
+    available_interests: List[Interest],
     warehouses: List[Warehouse],
     rates: Dict,
     ai_client: OpenAIClient
@@ -19,6 +20,8 @@ def process_batch_input_data(
     """
     if not available_categories:
         raise ValueError("The 'available_categories' list cannot be empty.")
+    if not available_interests:
+        raise ValueError("The 'available_interests' list cannot be empty.")
     if not warehouses:
         raise ValueError("The 'warehouses' list cannot be empty.")
 
@@ -40,6 +43,7 @@ def process_batch_input_data(
             post_data_result = generate_post(
                 client_input=enriched_input,
                 available_bns_categories=available_categories,
+                available_interests=available_interests,
                 valid_warehouses=warehouses,
                 currency_conversion_rates=rates,
                 ai_client=ai_client,
