@@ -91,7 +91,10 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append("\n--- STEP-BY-STEP WORKFLOW ---")
     prompt_lines.append("1. Parse all provided fields, noting any pre-filled values.")
     prompt_lines.append(
-        "2. Simulate searching the item_url to collect missing info: item name, price, currency, and best image URL."
+        "2. Scraped data may already include item_name, image_url, item_weight, price, and currency. "
+        "Keep the provided image_url and item_weight unchanged. "
+        "If price or currency are missing, try to determine them. "
+        "Also attempt your own item_name and later compare it with the scraped value."
     )
     prompt_lines.append(
         "3. Extract each required data field. If information is unavailable, use these fallbacks: null for image_url, 0.0 for source_price, and 'N/A' for source_currency."
@@ -134,18 +137,23 @@ def _build_comprehensive_llm_prompt(
     # Field-specific instructions
     # item_name
     if client_input.item_name:
-        prompt_lines.append(f"- Use '{client_input.item_name}' for the 'item_name' field in your JSON output.")
+        prompt_lines.append(
+            f"- A scraper found the name '{client_input.item_name}'. "
+            "Try to determine the item name yourself as well, then choose between your answer and the scraped name based on which makes more sense. "
+            "Place the chosen result in the 'item_name' field."
+        )
     else:
-        prompt_lines.append(f"- Determine the item's name from '{client_input.item_url}'. If not already, translate this name to English. Place the result in the 'item_name' field.")
+        prompt_lines.append(
+            f"- Determine the item's name from '{client_input.item_url}'. If not already, translate this name to English. Place the result in the 'item_name' field."
+        )
 
     # image_url
     if client_input.image_url:
-        prompt_lines.append(f"- Use '{client_input.image_url}' for the 'image_url' field in your JSON output.")
-    else:
         prompt_lines.append(
-            f"- Simulate a web search for the item at the provided item_url and find the best image URL. "
-            "Place this definitive URL in the 'image_url' field. If no suitable image is found, use null."
+            f"- Use the provided image URL '{client_input.image_url}' exactly as-is for the 'image_url' field. Do not modify it."
         )
+    else:
+        prompt_lines.append("- No image URL is available. Use null for 'image_url'.")
 
     # warehouse (MCQ)
     if client_input.warehouse:
@@ -178,12 +186,18 @@ def _build_comprehensive_llm_prompt(
         )
 
     # source_currency & source_price
-    prompt_lines.append(
-        f"- Determine the item's price from '{client_input.item_url}'. Extract the numeric price value and its currency. "
-        "Convert the currency to its standard three-letter code (e.g., USD, EUR, JPY). "
-        "Place the numeric price as a float in 'source_price' and the 3-letter currency code in 'source_currency'. "
-        "If price is not found, use 0.0 for price and 'N/A' for currency."
-    )
+    if client_input.source_price > 0 or client_input.source_currency:
+        prompt_lines.append(
+            "- Use any provided 'source_price' or 'source_currency' values as-is. "
+            "Only determine whichever of these two fields is missing."
+        )
+    else:
+        prompt_lines.append(
+            f"- Determine the item's price from '{client_input.item_url}'. Extract the numeric price and currency. "
+            "Convert the currency to its three-letter code (e.g., USD). "
+            "Place the numeric price in 'source_price' and the code in 'source_currency'. "
+            "If price is not found, use 0.0 for price and 'N/A' for currency."
+        )
     
     # title & content
     master_examples_list_for_region = MASTER_POST_EXAMPLES.get(client_input.region.upper())
@@ -292,17 +306,14 @@ def _finalize_data_from_llm_response(
     # --- Apply LLM output and client overrides ---
 
     # 1. item_name
-    if original_client_input.item_name:
-        final_data["item_name"] = original_client_input.item_name
-    elif llm_output.get("item_name"):
+    if llm_output.get("item_name"):
         final_data["item_name"] = str(llm_output.get("item_name"))
+    elif original_client_input.item_name:
+        final_data["item_name"] = original_client_input.item_name
 
-    # 2. image_url (Prefer LLM's finding)
-    if llm_output.get("image_url"):
-        final_data["image_url"] = str(llm_output.get("image_url"))
-    elif original_client_input.image_url: # Fallback to client's if LLM provides none
+    # 2. image_url (use scraper/client value only)
+    if original_client_input.image_url:
         final_data["image_url"] = original_client_input.image_url
-    # else it keeps DEFAULT_FALLBACK_IMAGE_URL
 
     # 3. warehouse & target_warehouse_currency
     valid_warehouse_codes_only = warehouse_codes_only
