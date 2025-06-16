@@ -164,8 +164,8 @@ def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostDataBuild
                     'discounted': get_cleaned_value('discounted'),
                     'warehouse': get_cleaned_value('warehouse') or '',
                     'item_name': get_cleaned_value('item_name') or '',
-                    'item_price': to_float(get_cleaned_value('item_price')),
-                    'item_currency': get_cleaned_value('item_currency') or '',
+                    'source_price': to_float(get_cleaned_value('source_price')),
+                    'source_currency': get_cleaned_value('source_currency') or '',
                     'item_unit_price': to_float(get_cleaned_value('item_unit_price')),
                     'item_weight': to_float(get_cleaned_value('item_weight')),
                 })
