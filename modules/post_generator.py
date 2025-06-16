@@ -94,7 +94,7 @@ def _build_comprehensive_llm_prompt(
         "2. Simulate searching the item_url to collect missing info: item name, price, currency, and best image URL."
     )
     prompt_lines.append(
-        "3. Extract each required data field. If information is unavailable, use these fallbacks: null for image_url, 0.0 for item_price_in_item_currency, and 'N/A' for item_currency."
+        "3. Extract each required data field. If information is unavailable, use these fallbacks: null for image_url, 0.0 for source_price, and 'N/A' for source_currency."
     )
     prompt_lines.append(
         "4. Select the most suitable category and warehouse from the lists above (never create new values)."
@@ -117,8 +117,8 @@ def _build_comprehensive_llm_prompt(
         '  "image_url": "string_url | null",\n'
         '  "category": "string_from_list",\n'
         '  "warehouse": "string_from_list_or_client_value",\n'
-        '  "item_currency": "3_letter_code_or_\"N/A\"",\n'
-        '  "item_price_in_item_currency": "float",\n'
+        '  "source_currency": "3_letter_code_or_\"N/A\"",\n'
+        '  "source_price": "float",\n'
         '  "title": "string",\n'
         '  "content": "string_plain_text"\n'
         "}"
@@ -177,11 +177,11 @@ def _build_comprehensive_llm_prompt(
             f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'category' field."
         )
 
-    # item_currency & item_price_in_item_currency
+    # source_currency & source_price
     prompt_lines.append(
         f"- Determine the item's price from '{client_input.item_url}'. Extract the numeric price value and its currency. "
         "Convert the currency to its standard three-letter code (e.g., USD, EUR, JPY). "
-        "Place the numeric price as a float in 'item_price_in_item_currency' and the 3-letter currency code in 'item_currency'. "
+        "Place the numeric price as a float in 'source_price' and the 3-letter currency code in 'source_currency'. "
         "If price is not found, use 0.0 for price and 'N/A' for currency."
     )
     
@@ -245,7 +245,7 @@ def _invoke_comprehensive_llm(
             # Validate that all required keys are present in LLM response
             required_keys = [
                 "item_name", "image_url", "category", "warehouse",
-                "item_currency", "item_price_in_item_currency",
+                "source_currency", "source_price",
                 "title", "content"
             ]
             missing_keys = [key for key in required_keys if key not in parsed_json]
@@ -278,6 +278,8 @@ def _finalize_data_from_llm_response(
     final_data["warehouse"] = (
         warehouse_codes_only[0] if warehouse_codes_only else "UNKNOWN_WAREHOUSE"
     )
+    final_data["source_price"] = 0.0
+    final_data["source_currency"] = "N/A"
     final_data["item_unit_price"] = 0.0
     final_data["title"] = "Title Generation Failed"
     final_data["content"] = "Content Generation Failed. Please check item URL."
@@ -344,17 +346,28 @@ def _finalize_data_from_llm_response(
         )
         final_data["category"] = next(iter(values))
 
-    # 5. Determine source_price and source_currency (from LLM)
-    llm_price_val = llm_output.get("item_price_in_item_currency")
-    llm_currency_val = llm_output.get("item_currency")
-
+    # 5. Determine source_price and source_currency (from client input or LLM)
     source_price: Optional[float] = None
     source_currency: Optional[str] = None  # Currency as found on site
 
-    if isinstance(llm_price_val, (float, int)) and isinstance(llm_currency_val, str) and len(llm_currency_val) == 3:
+    if original_client_input.source_price > 0:
+        source_price = original_client_input.source_price
+        final_data["source_price"] = source_price
+    if original_client_input.source_currency:
+        source_currency = original_client_input.source_currency.upper()
+        final_data["source_currency"] = source_currency
+
+    llm_price_val = llm_output.get("source_price")
+    llm_currency_val = llm_output.get("source_currency")
+
+    if source_price is None and isinstance(llm_price_val, (float, int)):
         source_price = float(llm_price_val)
+        final_data["source_price"] = source_price
+    if source_currency is None and isinstance(llm_currency_val, str) and len(llm_currency_val) == 3:
         source_currency = llm_currency_val.upper()
-    else:
+        final_data["source_currency"] = source_currency
+
+    if source_price is None or source_currency is None:
         print(
             f"Warning: Valid source price/currency not found from LLM. LLM provided price: '{llm_price_val}', currency: '{llm_currency_val}'."
         )
@@ -444,6 +457,8 @@ if __name__ == '__main__':
         warehouse="",
         item_url="https://www.lush.com/uk/en/p/wasabi-shan-kui-shampoo?queryId=a9d530215c36459b66438cd919d05285",
         item_name="",
+        source_price=0.0,
+        source_currency="",
         item_unit_price=0.0,
         item_weight=0.0,
         region="HK",
