@@ -2,7 +2,7 @@
 import json
 from typing import Dict, List, Optional, Any, Tuple
 
-from modules.models import PostData
+from modules.models import PostData, Category, Warehouse
 from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your client
 
 # --- Module Constants ---
@@ -73,10 +73,11 @@ def _get_conversion_rate(
 
 def _build_comprehensive_llm_prompt(
     client_input: PostData,
-    available_bns_categories: List[str],
+    available_bns_categories: List[Category],
     valid_warehouse_ids_for_mcq: List[str] # Just the IDs for the prompt
 ) -> str:
     prompt_lines = []
+    category_labels = [c.label for c in available_bns_categories]
 
     # 1. Role Definition & Overall Goal
     prompt_lines.append(
@@ -138,7 +139,7 @@ def _build_comprehensive_llm_prompt(
         prompt_lines.append(f"- Use '{client_input.post_category}' for the 'post_category' field in your JSON output.")
     else:
         prompt_lines.append(
-            f"- From the following list of valid BNS Post Categories: {available_bns_categories}, select the single most appropriate category for the item based on all its details. Place your choice in the 'post_category' field."
+            f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'post_category' field."
         )
 
     # item_currency & item_price_in_item_currency
@@ -227,8 +228,8 @@ def _invoke_comprehensive_llm(
 def _finalize_data_from_llm_response(
     llm_output: Dict[str, Any],
     original_client_input: PostData,
-    available_bns_categories: List[str],
-    valid_warehouses: List[Tuple[str, str]], # Full list with (id, currency_code)
+    available_bns_categories: List[Category],
+    valid_warehouses: List[Warehouse],
     currency_conversion_rates: Dict[str, Dict[str, float]]
 ) -> Dict[str, Any]:
     final_data = {}
@@ -237,8 +238,11 @@ def _finalize_data_from_llm_response(
     # These are for PostData object, which has more fields than LLM output
     final_data["item_name"] = "Item Name Unavailable"
     final_data["image_url"] = DEFAULT_FALLBACK_IMAGE_URL
-    final_data["post_category"] = available_bns_categories[0] if available_bns_categories else "General"
-    final_data["warehouse_id"] = (valid_warehouses[0][0] if valid_warehouses else "UNKNOWN_WAREHOUSE")
+    category_labels = [c.label for c in available_bns_categories]
+    warehouse_ids_only = [w.value for w in valid_warehouses]
+
+    final_data["post_category"] = category_labels[0] if category_labels else "General"
+    final_data["warehouse_id"] = (warehouse_ids_only[0] if warehouse_ids_only else "UNKNOWN_WAREHOUSE")
     # Price/Currency will be determined below based on warehouse
     final_data["item_price"] = 0.0
     final_data["item_currency"] = "N/A" # This will be warehouse currency
@@ -268,7 +272,7 @@ def _finalize_data_from_llm_response(
     # else it keeps DEFAULT_FALLBACK_IMAGE_URL
 
     # 3. warehouse_id & target_warehouse_currency
-    valid_warehouse_ids_only = [wh[0] for wh in valid_warehouses]
+    valid_warehouse_ids_only = warehouse_ids_only
     target_warehouse_currency = "N/A"
 
     if original_client_input.warehouse_id and original_client_input.warehouse_id in valid_warehouse_ids_only:
@@ -281,24 +285,24 @@ def _finalize_data_from_llm_response(
     # else it keeps "UNKNOWN_WAREHOUSE" (or previous default)
 
     # Find currency for the chosen warehouse_id
-    for wh_id, wh_curr in valid_warehouses:
-        if wh_id == final_data["warehouse_id"]:
-            target_warehouse_currency = wh_curr.upper()
+    for wh in valid_warehouses:
+        if wh.value == final_data["warehouse_id"]:
+            target_warehouse_currency = wh.currency.upper()
             break
-    
-    if target_warehouse_currency == "N/A" and valid_warehouses: # Should ideally not happen if warehouse_id is from list
-        target_warehouse_currency = valid_warehouses[0][1].upper()
+
+    if target_warehouse_currency == "N/A" and valid_warehouses:
+        target_warehouse_currency = valid_warehouses[0].currency.upper()
         print(f"Warning: Could not determine target warehouse currency reliably, defaulting to {target_warehouse_currency}")
 
 
     # 4. post_category
-    if original_client_input.post_category and original_client_input.post_category in available_bns_categories:
+    if original_client_input.post_category and original_client_input.post_category in category_labels:
         final_data["post_category"] = original_client_input.post_category
-    elif "post_category" in llm_output and llm_output["post_category"] in available_bns_categories:
+    elif "post_category" in llm_output and llm_output["post_category"] in category_labels:
         final_data["post_category"] = str(llm_output["post_category"])
-    elif available_bns_categories: # Default to first valid if others fail
+    elif category_labels:  # Default to first valid if others fail
         print(f"Warning: Client/LLM post_category invalid or missing. Defaulting from valid list.")
-        final_data["post_category"] = available_bns_categories[0]
+        final_data["post_category"] = category_labels[0]
     # else it keeps "General" (or previous default)
 
     # 5. Determine source_price and source_currency (from LLM or client)
@@ -361,15 +365,15 @@ def _finalize_data_from_llm_response(
 # --- Public API Function ---
 def generate_post(
     client_input: PostData,
-    available_bns_categories: List[str],
-    valid_warehouses: List[Tuple[str, str]],
+    available_bns_categories: List[Category],
+    valid_warehouses: List[Warehouse],
     currency_conversion_rates: Dict[str, Dict[str, float]],
     ai_client: OpenAIClient,
     model: str
 ) -> PostData:
     print(f"INFO: Starting post generation for URL: {client_input.item_url}, Region: {client_input.region}")
 
-    valid_warehouse_ids_for_prompt = [wh[0] for wh in valid_warehouses]
+    valid_warehouse_ids_for_prompt = [wh.value for wh in valid_warehouses]
 
     user_prompt = _build_comprehensive_llm_prompt(
         client_input,
@@ -429,23 +433,31 @@ if __name__ == '__main__':
         region="HK",
     )
 
-    available_cats = ["sports", "healthcare", "fashion", "home", "recipe",
-                     "diy", "art", "stationery", "entertainment", "vehicle",
-                     "electronics", "baby-care", "music", "photography",
-                     "beauty", "pet"]
+    available_cats = [
+        Category(label=label, value=i)
+        for i, label in enumerate([
+            "sports", "healthcare", "fashion", "home", "recipe",
+            "diy", "art", "stationery", "entertainment", "vehicle",
+            "electronics", "baby-care", "music", "photography",
+            "beauty", "pet"
+        ], 1)
+    ]
     
     # warehouse_id, warehouse_currency_code
     warehouses = [
-        ("warehouse-4px-uspdx", "USD"),
-        ("warehouse-bnsca-toronto", "CAD"),
-        ("warehouse-bnsuk-ashford", "GBP"),
-        ("warehouse-bnsit-milan", "EUR"),
-        ("warehouse-qs-osaka", "JPY"),
-        ("warehouse-kas-seoul", "KRW"),
-        ("warehouse-lht-dongguan", "CNY"),
-        ("warehouse-bnstw-taipei", "TWD"),
-        ("warehouse-bnsau-sydney", "AUD"),
-        ("warehouse-bnsth-bangkok", "THB")
+        Warehouse(label="", value=w_id, currency=cur)
+        for w_id, cur in [
+            ("warehouse-4px-uspdx", "USD"),
+            ("warehouse-bnsca-toronto", "CAD"),
+            ("warehouse-bnsuk-ashford", "GBP"),
+            ("warehouse-bnsit-milan", "EUR"),
+            ("warehouse-qs-osaka", "JPY"),
+            ("warehouse-kas-seoul", "KRW"),
+            ("warehouse-lht-dongguan", "CNY"),
+            ("warehouse-bnstw-taipei", "TWD"),
+            ("warehouse-bnsau-sydney", "AUD"),
+            ("warehouse-bnsth-bangkok", "THB")
+        ]
     ]
 
     # Simplified conversion rates

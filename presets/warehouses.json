@@ -2,71 +2,79 @@
     {
         "label": "Portland, U.S. (Tax-free)",
         "value": "warehouse-4px-uspdx",
+        "currency": "USD",
         "disabled": false
     },
     {
         "label": "Los Angeles, U.S.",
         "value": "warehouse-bnsus-la",
+        "currency": "USD",
         "disabled": false
     },
     {
         "label": "Toronto, Canada",
         "value": "warehouse-bnsca-toronto",
+        "currency": "CAD",
         "disabled": false
     },
     {
         "label": "Ashford, U.K.",
         "value": "warehouse-bnsuk-ashford",
+        "currency": "GBP",
         "disabled": false
     },
     {
         "label": "Milan, Italy",
         "value": "warehouse-bnsit-milan",
+        "currency": "EUR",
         "disabled": false
     },
     {
         "label": "Ibaraki, Japan",
         "value": "warehouse-qs-osaka",
+        "currency": "JPY",
         "disabled": false
     },
     {
         "label": "Seoul, South Korea",
         "value": "warehouse-kas-seoul",
+        "currency": "KRW",
         "disabled": false
     },
     {
         "label": "Shenzhen, China",
         "value": "warehouse-lht-dongguan",
+        "currency": "CNY",
         "disabled": false
     },
     {
         "label": "Hong Kong",
         "value": "warehouse-bns-hk",
-        "disabled": false
-    },
-    {
-        "label": "warehouses.warehouse-bnshk-hk2",
-        "value": "warehouse-bnshk-hk2",
+        "currency": "HKD",
         "disabled": false
     },
     {
         "label": "Sydney, Australia",
         "value": "warehouse-bnsau-sydney",
+        "currency": "AUD",
         "disabled": false
     },
     {
         "label": "Bangkok, Thailand",
         "value": "warehouse-bnsth-bangkok",
+        "currency": "THB",
         "disabled": false
     },
     {
         "label": "Jakarta, Indonesia",
         "value": "warehouse-bnsid-jakarta",
+        "currency": "IDR",
         "disabled": false
     },
     {
         "label": "Chiba, Japan (Direct Shipping)",
         "value": "warehouse-bnsjp-2",
+        "currency": "JPY",
         "disabled": false
     }
 ]
