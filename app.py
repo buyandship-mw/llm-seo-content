@@ -1,14 +1,20 @@
 import os
 
 from modules.openai_client import AzureOpenAIClient, OpenAIClient
-from modules.csv_parser import load_categories_from_csv, load_warehouses_from_csv, parse_csv_to_post_data
+from modules.csv_parser import (
+    load_categories_from_json,
+    load_interests_from_json,
+    load_warehouses_from_json,
+    parse_csv_to_post_data,
+)
 from modules.csv_writer import write_post_data_to_csv
 from modules.executor import process_batch_input_data
 
 # --- Configuration ---
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-CATEGORIES_FILE = os.path.join(CURRENT_DIR, "data/categories.csv")
-WAREHOUSES_FILE = os.path.join(CURRENT_DIR, "data/warehouses.csv")
+CATEGORIES_FILE = os.path.join(CURRENT_DIR, "presets/categories.json")
+INTERESTS_FILE = os.path.join(CURRENT_DIR, "presets/interests.json")
+WAREHOUSES_FILE = os.path.join(CURRENT_DIR, "presets/warehouses.json")
 INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test.csv")
 OUTPUT_POST_DATA_FILE = os.path.join(CURRENT_DIR, "output.csv")
 
@@ -26,10 +32,13 @@ def run_pipeline():
     # 1. Load data from external sources
     try:
         print(f"Loading categories from: {CATEGORIES_FILE}")
-        available_categories = load_categories_from_csv(CATEGORIES_FILE)
+        available_categories = load_categories_from_json(CATEGORIES_FILE)
+
+        print(f"Loading interests from: {INTERESTS_FILE}")
+        interests = load_interests_from_json(INTERESTS_FILE)
 
         print(f"Loading warehouses from: {WAREHOUSES_FILE}")
-        warehouses = load_warehouses_from_csv(WAREHOUSES_FILE)
+        warehouses = load_warehouses_from_json(WAREHOUSES_FILE)
         print(warehouses)
         
         print(f"Loading input data from: {INPUT_DATA_FILE}")

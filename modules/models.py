@@ -1,6 +1,20 @@
 from dataclasses import dataclass
 from typing import Optional
 
+
+@dataclass
+class Category:
+    """Represents a selectable post category."""
+    label: str
+    value: int
+
+
+@dataclass
+class Interest:
+    """Represents a user's area of interest."""
+    label: str
+    value: str
+
 @dataclass
 class PostData:
     title: str
@@ -27,5 +41,7 @@ class PostData:
 
 @dataclass
 class Warehouse:
-    id: str
+    """Represents a fulfillment warehouse."""
+    label: str
+    value: str
     currency: str
