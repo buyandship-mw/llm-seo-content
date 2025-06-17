@@ -34,6 +34,7 @@ def test_parse_full_row():
         content="Content A",
         image_url="http://img/a.jpg",
         category=1,
+        category_label="",
         interest="Tech",
         warehouse="WH1",
         item_url="http://a.com",

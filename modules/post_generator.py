@@ -309,6 +309,7 @@ def _finalize_data_from_llm_response(
 
     # Category (convert label to numeric value)
     label_to_value = {c.label: c.value for c in available_bns_categories}
+    value_to_label = {c.value: c.label for c in available_bns_categories}
     values = set(label_to_value.values())
     if original_client_input.category and original_client_input.category in values:
         final_data["category"] = original_client_input.category
@@ -319,6 +320,8 @@ def _finalize_data_from_llm_response(
             "Warning: Client/LLM category invalid or missing. Defaulting from valid list."
         )
         final_data["category"] = next(iter(values))
+
+    final_data["category_label"] = value_to_label.get(final_data["category"], "")
 
     # Interest (convert label to value)
     label_to_interest_value = {i.label: i.value for i in available_interests}

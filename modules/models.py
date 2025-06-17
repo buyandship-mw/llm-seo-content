@@ -29,6 +29,7 @@ class PostData:
     source_currency: str
     item_unit_price: float
     region: str
+    category_label: str = ""
     item_weight: Optional[float] = None
     user: str = "B2kKF5R47K8VpY3ynBh9CB"
     status: str = "draft"
