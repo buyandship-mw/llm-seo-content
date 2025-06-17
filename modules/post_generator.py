@@ -62,6 +62,7 @@ def _build_comprehensive_llm_prompt(
     # --- Step-by-step workflow ---
     prompt_lines.append(
         "\n--- STEP-BY-STEP WORKFLOW ---"
+        "\n0. Perform a web search using the provided item URL and related metadata to retrieve up-to-date product information before any other steps."
         "\n1. Parse all provided fields, noting any pre-filled values."
         "\n2. Scraped data may already include item_name, price, or currency. "
         "\nIf item_weight is missing, search the product details to find it in grams. If unavailable, return None."
