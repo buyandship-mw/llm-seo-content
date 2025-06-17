@@ -190,6 +190,7 @@ def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostDataBuild
                     'disable_comment': to_bool(get_cleaned_value('disable_comment')) if get_cleaned_value('disable_comment') is not None else PostData.disable_comment,
                     'team_id': get_cleaned_value('team_id') or PostData.team_id,
                     'category': to_int(get_cleaned_value('category')),
+                    'category_label': get_cleaned_value('category_label') or '',
                     'interest': get_cleaned_value('interest') or '',
                     'payment_method': get_cleaned_value('payment_method'),
                     'service': get_cleaned_value('service') or PostData.service,
