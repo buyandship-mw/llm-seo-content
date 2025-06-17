@@ -49,7 +49,6 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
 DEFAULT_FALLBACK_IMAGE_URL = "https://example.com/default_item_image.png"
 
 # --- Internal Helper Functions ---
-
 def _build_comprehensive_llm_prompt(
     client_input: PostData,
     available_bns_categories: List[Category],
@@ -59,30 +58,6 @@ def _build_comprehensive_llm_prompt(
     prompt_lines = []
     category_labels = [c.label for c in available_bns_categories]
     interest_labels = [i.label for i in available_interests]
-
-    tld_warehouse_map = {
-        "jp": "warehouse-qs-osaka",
-        "us": "warehouse-4px-uspdx",
-        "uk": "warehouse-bnsuk-ashford",
-        "ca": "warehouse-bnsca-toronto",
-        "it": "warehouse-bnsit-milan",
-        "au": "warehouse-bnsau-sydney",
-        "kr": "warehouse-kas-seoul",
-        "hk": "warehouse-bns-hk",
-        "cn": "warehouse-lht-dongguan",
-        "tw": "warehouse-bnstw-taipei",
-        "th": "warehouse-bnsth-bangkok",
-        "id": "warehouse-bnsid-jakarta",
-    }
-
-    # --- Lists the model can choose from (moved to top) ---
-    prompt_lines.append("### SELECTABLE OPTIONS")
-    prompt_lines.append(f"Warehouses: {valid_warehouses_for_mcq}")
-    prompt_lines.append(f"Categories: {category_labels}")
-    prompt_lines.append(f"Interests: {interest_labels}")
-    prompt_lines.append(
-        "You may ONLY choose values from these lists. Never invent new warehouses, categories, or interests."
-    )
 
     # --- Step-by-step workflow ---
     prompt_lines.append(
@@ -155,15 +130,12 @@ def _build_comprehensive_llm_prompt(
             "Translate the extracted name to English and place the result in the 'item_name' field."
         )
 
-    # warehouse (MCQ)
+    # --- warehouse (MCQ) ---
     prompt_lines.append(
-        f"- Infer the primary sales country from {client_input.item_url} and related details."
+        "- Infer the primary sales location of the item (e.g. country or city) from the URL and any other metadata."
     )
     prompt_lines.append(
-        f"- Use this heuristic mapping for quick selection based on the URL's top-level domain: {tld_warehouse_map}."
-    )
-    prompt_lines.append(
-        f"- Choose the warehouse from {valid_warehouses_for_mcq} that best matches or is geographically closest to that country. If unsure, default to 'warehouse-bns-hk'."
+        f"- From the following list of valid warehouses: {valid_warehouses_for_mcq}, select the warehouse geographically closest to the sales location. Do not select the warehouse based on the target content region or style."
     )
 
     # category (MCQ)
@@ -206,13 +178,13 @@ def _build_comprehensive_llm_prompt(
 
     prompt_lines.append(
         "\n--- CONTENT GENERATION (TITLE & CONTENT) ---"
-        "\nBased on all information (client-provided and your findings from your simulated search), "
+        "\nBased on all information (client-provided and your findings from your search), "
         "generate 'title' (string) and 'content' (string, plain text, NO MARKDOWN formatting)."
     )
     prompt_lines.append(
         f"The style, tone, and structure for 'title' and 'content' should be closely guided by the master examples "
         f"provided below for the {client_input.region} region. {language_guidance} "
-        "The 'content' should generally have two main sections based on your simulated search: "
+        "The 'content' should generally have two main sections based on your search: "
         "1. a product introduction (highlighting key features/benefits), and "
         "2. a brief summary of user reviews or public sentiment."
     )
@@ -335,7 +307,7 @@ def _finalize_data_from_llm_response(
 
     final_data["item_unit_price"] = final_item_price_converted
 
-    # 4. category (convert label to numeric value)
+    # Category (convert label to numeric value)
     label_to_value = {c.label: c.value for c in available_bns_categories}
     values = set(label_to_value.values())
     if original_client_input.category and original_client_input.category in values:
@@ -348,7 +320,7 @@ def _finalize_data_from_llm_response(
         )
         final_data["category"] = next(iter(values))
 
-    # 5. interest (convert label to value)
+    # Interest (convert label to value)
     label_to_interest_value = {i.label: i.value for i in available_interests}
     interest_values = set(label_to_interest_value.values())
     if original_client_input.interest and original_client_input.interest in interest_values:
