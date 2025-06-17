@@ -2,6 +2,8 @@ Ensure you are in the root directory before proceeding with these commands.
 
 To run the pipeline: `python3 app.py`
 
+To start the Flask API server: `python3 server.py`
+
 The OpenAI clients now read credentials from environment variables. You can
 create a `.env` file (see `.env.sample`) and the application will load it
 automatically.

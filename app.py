@@ -9,7 +9,7 @@ from modules.csv_parser import (
     parse_csv_to_post_data,
 )
 from modules.csv_writer import write_post_data_to_csv
-from modules.executor import process_batch_input_data
+from services.executor_service import process_batch_input_data
 
 # --- Configuration ---
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
