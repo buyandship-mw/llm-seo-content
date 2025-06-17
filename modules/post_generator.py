@@ -50,7 +50,6 @@ DEFAULT_FALLBACK_IMAGE_URL = "https://example.com/default_item_image.png"
 
 # --- Internal Helper Functions ---
 
-
 def _choose_better_name(scraped: Optional[str], llm_name: Optional[str]) -> str:
     """Return the name that seems more concise and meaningful."""
     scraped = scraped.strip() if scraped else ""
@@ -65,9 +64,6 @@ def _choose_better_name(scraped: Optional[str], llm_name: Optional[str]) -> str:
     if llm_name.lower() in scraped.lower() or len(llm_name) <= len(scraped):
         return llm_name
     return scraped
-
-
-
 
 def _build_comprehensive_llm_prompt(
     client_input: PostData,
@@ -100,34 +96,21 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append(f"Categories: {category_labels}")
     prompt_lines.append(f"Interests: {interest_labels}")
     prompt_lines.append(
-        "You may ONLY choose values from these lists. Never invent new warehouses or categories."
+        "You may ONLY choose values from these lists. Never invent new warehouses, categories, or interests."
     )
 
     # --- Step-by-step workflow ---
-    prompt_lines.append("\n--- STEP-BY-STEP WORKFLOW ---")
-    prompt_lines.append("1. Parse all provided fields, noting any pre-filled values.")
-    weight_instruction = (
-        "Keep the provided item_weight exactly as received."
-        if client_input.item_weight is not None
-        else "If item_weight is missing, search the product details to find it in grams. If unavailable, return null."
-    )
     prompt_lines.append(
-        "2. Scraped data may already include item_name, price, or currency. "
-        f"{weight_instruction} "
-        "If price or currency are missing, try to determine them. "
-        "Also attempt your own item_name and later compare it with the scraped value."
-    )
-    prompt_lines.append(
-        "3. Extract each required data field. If information is unavailable, use these fallbacks: 0.0 for source_price and 'N/A' for source_currency."
-    )
-    prompt_lines.append(
-        "4. Select the most suitable category, warehouse, and interest from the lists above (never create new values)."
-    )
-    prompt_lines.append(
-        "5. Generate region-specific 'title' and 'content' matching the tone and structure of the provided examples."
-    )
-    prompt_lines.append(
-        "6. Output a single valid JSON object using the structure below with no commentary or markdown."
+        "\n--- STEP-BY-STEP WORKFLOW ---"
+        "\n1. Parse all provided fields, noting any pre-filled values."
+        "\n2. Scraped data may already include item_name, price, or currency. "
+        "\nIf item_weight is missing, search the product details to find it in grams. If unavailable, return None."
+        "\nIf price or currency are missing, try to determine them. "
+        "\nAlso attempt your own item_name and later compare it with the scraped value."
+        "\n3. Extract each required data field. If information is unavailable, return None."
+        "\n4. Select the most suitable category, warehouse, and interest from the lists above (never create new values)."
+        "\n5. Generate region-specific 'title' and 'content' matching the tone and structure of the provided examples."
+        "\n6. Output a single valid JSON object using the structure below with no commentary or markdown."
     )
 
     # --- Output format & guardrails ---
@@ -172,72 +155,41 @@ def _build_comprehensive_llm_prompt(
 
     # Field-specific instructions
     # item_name
+    prompt_lines.append(
+        "\n--- ITEM NAME EXTRACTION & TRANSLATION ---"
+    )
     if client_input.item_name:
         prompt_lines.append(
             f"- A scraper found the name '{client_input.item_name}'. "
-            "Try to determine the item name yourself as well, then choose between your answer and the scraped name based on which makes more sense. "
-            "Place the chosen result in the 'item_name' field."
+            "Translate this item name to English, then compare with the scraped name. "
+            "Choose the most clear English name and place it in the 'item_name' field."
         )
     else:
         prompt_lines.append(
-            f"- Determine the item's name from '{client_input.item_url}'. If not already, translate this name to English. Place the result in the 'item_name' field."
+            f"- Determine the item's name from '{client_input.item_url}'. "
+            "Translate the extracted name to English and place the result in the 'item_name' field."
         )
-
 
     # warehouse (MCQ)
-    if client_input.warehouse:
-        prompt_lines.append(
-            f"- Use '{client_input.warehouse}' for the 'warehouse' field in your JSON output."
-        )
-    else:
-        prompt_lines.append(
-            f"- Infer the primary sales country from {client_input.item_url} and related details."
-        )
-        prompt_lines.append(
-            f"- Use this heuristic mapping for quick selection based on the URL's top-level domain: {tld_warehouse_map}."
-        )
-        prompt_lines.append(
-            f"- Choose the warehouse from {valid_warehouses_for_mcq} that best matches or is geographically closest to that country. If unsure, default to 'warehouse-bns-hk'."
-        )
+    prompt_lines.append(
+        f"- Infer the primary sales country from {client_input.item_url} and related details."
+    )
+    prompt_lines.append(
+        f"- Use this heuristic mapping for quick selection based on the URL's top-level domain: {tld_warehouse_map}."
+    )
+    prompt_lines.append(
+        f"- Choose the warehouse from {valid_warehouses_for_mcq} that best matches or is geographically closest to that country. If unsure, default to 'warehouse-bns-hk'."
+    )
 
     # category (MCQ)
-    if client_input.category:
-        existing_label = next(
-            (c.label for c in available_bns_categories if c.value == client_input.category),
-            None,
-        )
-        if existing_label:
-            prompt_lines.append(
-                f"- Use '{existing_label}' for the 'category' field in your JSON output."
-            )
-        else:
-            prompt_lines.append(
-                f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'category' field."
-            )
-    else:
-        prompt_lines.append(
-            f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'category' field."
-        )
+    prompt_lines.append(
+        f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'category' field."
+    )
 
     # interest (MCQ)
-    interest_labels_str = ', '.join(interest_labels)
-    if client_input.interest:
-        existing_interest_label = next(
-            (i.label for i in available_interests if i.value == client_input.interest),
-            None,
-        )
-        if existing_interest_label:
-            prompt_lines.append(
-                f"- Use '{existing_interest_label}' for the 'interest' field in your JSON output."
-            )
-        else:
-            prompt_lines.append(
-                f"- From the following list of valid interests: {interest_labels}, select the single most appropriate interest for the item. Place your choice in the 'interest' field."
-            )
-    else:
-        prompt_lines.append(
-            f"- From the following list of valid interests: {interest_labels}, select the single most appropriate interest for the item. Place your choice in the 'interest' field."
-        )
+    prompt_lines.append(
+        f"- From the following list of valid interests: {interest_labels}, select the single most appropriate interest for the item. Place your choice in the 'interest' field."
+    )
 
     # source_currency & source_price
     if client_input.source_price > 0 or client_input.source_currency:
@@ -250,7 +202,7 @@ def _build_comprehensive_llm_prompt(
             f"- Determine the item's price from '{client_input.item_url}'. Extract the numeric price and currency. "
             "Convert the currency to its three-letter code (e.g., USD). "
             "Place the numeric price in 'source_price' and the code in 'source_currency'. "
-            "If price is not found, use 0.0 for price and 'N/A' for currency."
+            "If price is not found, use None for price and None for currency."
         )
     
     # title & content
@@ -261,33 +213,25 @@ def _build_comprehensive_llm_prompt(
             "ICL for title/content will not be effective."
         )
     else:
-        # Convert the list of example dictionaries into a JSON string.
-        # This will result in a JSON array of objects.
         master_examples_json_str = json.dumps(master_examples_list_for_region, ensure_ascii=False, indent=2)
-        
-        # Update language guidance to refer to plural examples
         language_guidance = (
-            f"Generate the 'title' and 'content' directly in the primary language "
-            f"of the target region ('{client_input.region}'), matching the language style, tone, "
-            f"and structure demonstrated in the provided master examples."
+            f"Both title and content must be in the same language as these master examples for '{client_input.region}', "
+            "and content should similarly match their language style."
         )
 
     prompt_lines.append(
-        "\n--- CONTENT GENERATION (TITLE & CONTENT) ---" # Updated section title for clarity
-        f"\nBased on all information (client-provided and your findings from your simulated search), "
+        "\n--- CONTENT GENERATION (TITLE & CONTENT) ---"
+        "\nBased on all information (client-provided and your findings from your simulated search), "
         "generate 'title' (string) and 'content' (string, plain text, NO MARKDOWN formatting)."
     )
     prompt_lines.append(
-        # Updated wording to refer to "examples" (plural)
         f"The style, tone, and structure for 'title' and 'content' should be closely guided by the master examples "
-        f"provided below for the {client_input.region} region. "
-        f"{language_guidance} " # language_guidance already refers to plural examples
-        f"The 'content' should generally have two main sections based on your simulated search: "
+        f"provided below for the {client_input.region} region. {language_guidance} "
+        "The 'content' should generally have two main sections based on your simulated search: "
         "1. a product introduction (highlighting key features/benefits), and "
         "2. a brief summary of user reviews or public sentiment."
     )
     prompt_lines.append(
-        # Updated introductory phrase for the examples
         f"Here are some master examples for your reference. Learn from their structure, "
         f"item details they choose to highlight, and how they phrase the title and content sections:\n"
         f"{master_examples_json_str}"
