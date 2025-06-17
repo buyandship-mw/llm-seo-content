@@ -67,34 +67,19 @@ def _choose_better_name(scraped: Optional[str], llm_name: Optional[str]) -> str:
     return scraped
 
 
-def _infer_item_weight(client_input: PostData, ai_client: OpenAIClient, model: str) -> Optional[float]:
-    """Attempt to infer the item's weight using the LLM."""
-    prompt = (
-        "Extract the item's weight in grams from any available data. "
-        "Respond with JSON: {\"item_weight\": number|null}. "
-        f"Item URL: {client_input.item_url}\n"
-        f"Item name: {client_input.item_name or 'N/A'}"
-    )
-    raw = ai_client.get_completion_with_search(model=model, messages=[{"role": "user", "content": prompt}], temperature=0)
-    if not raw:
-        print(f"INFO: LLM weight extraction failed for {client_input.item_url}")
-        return None
-    try:
-        data = extract_and_parse_json(raw)
-        weight = data.get("item_weight")
-        return float(weight) if isinstance(weight, (int, float)) else None
-    except Exception:
-        print(f"INFO: Could not parse weight info for {client_input.item_url}")
-        return None
 
 
-def _guess_warehouse_from_url(item_url: str, warehouses: List[Warehouse]) -> str:
-    """Heuristic fallback to choose a warehouse based on the URL's country code."""
-    from urllib.parse import urlparse
+def _build_comprehensive_llm_prompt(
+    client_input: PostData,
+    available_bns_categories: List[Category],
+    available_interests: List[Interest],
+    valid_warehouses_for_mcq: List[str]  # Just the warehouse codes for the prompt
+) -> Tuple[str, List[str]]:
+    prompt_lines = []
+    category_labels = [c.label for c in available_bns_categories]
+    interest_labels = [i.label for i in available_interests]
 
-    domain = urlparse(item_url).netloc.lower()
-    tld = domain.split('.')[-1]
-    country_map = {
+    tld_warehouse_map = {
         "jp": "warehouse-qs-osaka",
         "us": "warehouse-4px-uspdx",
         "uk": "warehouse-bnsuk-ashford",
@@ -108,21 +93,6 @@ def _guess_warehouse_from_url(item_url: str, warehouses: List[Warehouse]) -> str
         "th": "warehouse-bnsth-bangkok",
         "id": "warehouse-bnsid-jakarta",
     }
-    wh_code = country_map.get(tld)
-    if wh_code and any(w.value == wh_code for w in warehouses):
-        return wh_code
-    return warehouses[0].value if warehouses else "UNKNOWN_WAREHOUSE"
-
-
-def _build_comprehensive_llm_prompt(
-    client_input: PostData,
-    available_bns_categories: List[Category],
-    available_interests: List[Interest],
-    valid_warehouses_for_mcq: List[str]  # Just the warehouse codes for the prompt
-) -> Tuple[str, List[str]]:
-    prompt_lines = []
-    category_labels = [c.label for c in available_bns_categories]
-    interest_labels = [i.label for i in available_interests]
 
     # --- Lists the model can choose from (moved to top) ---
     prompt_lines.append("### SELECTABLE OPTIONS")
@@ -216,13 +186,18 @@ def _build_comprehensive_llm_prompt(
 
     # warehouse (MCQ)
     if client_input.warehouse:
-        prompt_lines.append(f"- Use '{client_input.warehouse}' for the 'warehouse' field in your JSON output.")
+        prompt_lines.append(
+            f"- Use '{client_input.warehouse}' for the 'warehouse' field in your JSON output."
+        )
     else:
         prompt_lines.append(
-            f"- Simulate a web search on {client_input.item_url} to determine the primary country the item is sold from."
+            f"- Infer the primary sales country from {client_input.item_url} and related details."
         )
         prompt_lines.append(
-            f"- Then, from the following list of valid warehouses: {valid_warehouses_for_mcq}, select the one whose country is the same as or geographically closest to the country the item is sold from. Place your choice in the 'warehouse' field."
+            f"- Use this heuristic mapping for quick selection based on the URL's top-level domain: {tld_warehouse_map}."
+        )
+        prompt_lines.append(
+            f"- Choose the warehouse from {valid_warehouses_for_mcq} that best matches or is geographically closest to that country. If unsure, default to 'warehouse-bns-hk'."
         )
 
     # category (MCQ)
@@ -414,12 +389,16 @@ def _finalize_data_from_llm_response(
         final_data["warehouse"] = original_client_input.warehouse
     elif "warehouse" in llm_output and llm_output["warehouse"] in valid_warehouse_codes_only:
         final_data["warehouse"] = str(llm_output["warehouse"])
-    elif valid_warehouse_codes_only:
-        guessed = _guess_warehouse_from_url(original_client_input.item_url, valid_warehouses)
+    elif "warehouse-bns-hk" in valid_warehouse_codes_only:
         print(
-            f"Warning: Client/LLM warehouse invalid or missing. Guessing {guessed} based on URL."
+            "Warning: Client/LLM warehouse invalid or missing. Defaulting to warehouse-bns-hk."
         )
-        final_data["warehouse"] = guessed
+        final_data["warehouse"] = "warehouse-bns-hk"
+    elif valid_warehouse_codes_only:
+        print(
+            "Warning: Client/LLM warehouse invalid or missing. Defaulting from valid list."
+        )
+        final_data["warehouse"] = valid_warehouse_codes_only[0]
     # else it keeps "UNKNOWN_WAREHOUSE" (or previous default)
 
     # Find currency for the chosen warehouse
@@ -535,9 +514,6 @@ def generate_post(
 ) -> PostData:
     print(f"INFO: Starting post generation for URL: {client_input.item_url}, Region: {client_input.region}")
 
-    if client_input.item_weight is None:
-        inferred = _infer_item_weight(client_input, ai_client, model)
-        client_input.item_weight = inferred
 
     valid_warehouses_for_prompt = [wh.value for wh in valid_warehouses]
 
