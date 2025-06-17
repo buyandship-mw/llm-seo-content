@@ -67,6 +67,8 @@ def _choose_better_name(scraped: Optional[str], llm_name: Optional[str]) -> str:
     return scraped
 
 
+
+
 def _build_comprehensive_llm_prompt(
     client_input: PostData,
     available_bns_categories: List[Category],
@@ -76,6 +78,21 @@ def _build_comprehensive_llm_prompt(
     prompt_lines = []
     category_labels = [c.label for c in available_bns_categories]
     interest_labels = [i.label for i in available_interests]
+
+    tld_warehouse_map = {
+        "jp": "warehouse-qs-osaka",
+        "us": "warehouse-4px-uspdx",
+        "uk": "warehouse-bnsuk-ashford",
+        "ca": "warehouse-bnsca-toronto",
+        "it": "warehouse-bnsit-milan",
+        "au": "warehouse-bnsau-sydney",
+        "kr": "warehouse-kas-seoul",
+        "hk": "warehouse-bns-hk",
+        "cn": "warehouse-lht-dongguan",
+        "tw": "warehouse-bnstw-taipei",
+        "th": "warehouse-bnsth-bangkok",
+        "id": "warehouse-bnsid-jakarta",
+    }
 
     # --- Lists the model can choose from (moved to top) ---
     prompt_lines.append("### SELECTABLE OPTIONS")
@@ -89,9 +106,14 @@ def _build_comprehensive_llm_prompt(
     # --- Step-by-step workflow ---
     prompt_lines.append("\n--- STEP-BY-STEP WORKFLOW ---")
     prompt_lines.append("1. Parse all provided fields, noting any pre-filled values.")
+    weight_instruction = (
+        "Keep the provided item_weight exactly as received."
+        if client_input.item_weight is not None
+        else "If item_weight is missing, search the product details to find it in grams. If unavailable, return null."
+    )
     prompt_lines.append(
         "2. Scraped data may already include item_name, price, or currency. "
-        "Keep any provided image_url or item_weight exactly as received. "
+        f"{weight_instruction} "
         "If price or currency are missing, try to determine them. "
         "Also attempt your own item_name and later compare it with the scraped value."
     )
@@ -115,6 +137,8 @@ def _build_comprehensive_llm_prompt(
     )
 
     output_fields = ["item_name", "category", "interest", "warehouse", "title", "content"]
+    if client_input.item_weight is None:
+        output_fields.append("item_weight")
     if not client_input.source_price:
         output_fields.append("source_price")
     if not client_input.source_currency:
@@ -129,6 +153,7 @@ def _build_comprehensive_llm_prompt(
         "source_price": '  "source_price": "float"',
         "title": '  "title": "string"',
         "content": '  "content": "string_plain_text"',
+        "item_weight": '  "item_weight": "float_or_null"',
     }
 
     output_lines = ["{\n"]
@@ -161,13 +186,18 @@ def _build_comprehensive_llm_prompt(
 
     # warehouse (MCQ)
     if client_input.warehouse:
-        prompt_lines.append(f"- Use '{client_input.warehouse}' for the 'warehouse' field in your JSON output.")
+        prompt_lines.append(
+            f"- Use '{client_input.warehouse}' for the 'warehouse' field in your JSON output."
+        )
     else:
         prompt_lines.append(
-            f"- Simulate a web search on {client_input.item_url} to determine the primary country the item is sold from."
+            f"- Infer the primary sales country from {client_input.item_url} and related details."
         )
         prompt_lines.append(
-            f"- Then, from the following list of valid warehouses: {valid_warehouses_for_mcq}, select the one whose country is the same as or geographically closest to the country the item is sold from. Place your choice in the 'warehouse' field."
+            f"- Use this heuristic mapping for quick selection based on the URL's top-level domain: {tld_warehouse_map}."
+        )
+        prompt_lines.append(
+            f"- Choose the warehouse from {valid_warehouses_for_mcq} that best matches or is geographically closest to that country. If unsure, default to 'warehouse-bns-hk'."
         )
 
     # category (MCQ)
@@ -326,6 +356,14 @@ def _finalize_data_from_llm_response(
     # Optional fields from client input, passed through
     final_data["discounted"] = original_client_input.discounted
     final_data["item_weight"] = original_client_input.item_weight
+    if final_data["item_weight"] is None and "item_weight" in llm_output:
+        lw = llm_output.get("item_weight")
+        if isinstance(lw, (int, float)):
+            final_data["item_weight"] = float(lw)
+        else:
+            final_data["item_weight"] = None
+    if final_data["item_weight"] is None:
+        print(f"INFO: Weight info unavailable for {original_client_input.item_url}")
     final_data["payment_method"] = original_client_input.payment_method
 
     # --- Apply LLM output and client overrides ---
@@ -351,9 +389,14 @@ def _finalize_data_from_llm_response(
         final_data["warehouse"] = original_client_input.warehouse
     elif "warehouse" in llm_output and llm_output["warehouse"] in valid_warehouse_codes_only:
         final_data["warehouse"] = str(llm_output["warehouse"])
-    elif valid_warehouse_codes_only: # Default to first valid if others fail
+    elif "warehouse-bns-hk" in valid_warehouse_codes_only:
         print(
-            f"Warning: Client/LLM warehouse invalid or missing. Defaulting from valid list."
+            "Warning: Client/LLM warehouse invalid or missing. Defaulting to warehouse-bns-hk."
+        )
+        final_data["warehouse"] = "warehouse-bns-hk"
+    elif valid_warehouse_codes_only:
+        print(
+            "Warning: Client/LLM warehouse invalid or missing. Defaulting from valid list."
         )
         final_data["warehouse"] = valid_warehouse_codes_only[0]
     # else it keeps "UNKNOWN_WAREHOUSE" (or previous default)
@@ -470,6 +513,7 @@ def generate_post(
     model: str
 ) -> PostData:
     print(f"INFO: Starting post generation for URL: {client_input.item_url}, Region: {client_input.region}")
+
 
     valid_warehouses_for_prompt = [wh.value for wh in valid_warehouses]
 

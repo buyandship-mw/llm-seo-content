@@ -168,6 +168,15 @@ def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostDataBuild
                         return False
                     return val.strip().lower() in {"true", "1", "yes"}
 
+                def to_float_optional(val: Optional[str]) -> Optional[float]:
+                    if val is None:
+                        return None
+                    try:
+                        return float(val)
+                    except ValueError:
+                        print(f"Warning: Row {row_num}: Could not convert '{val}' to float. Using None.")
+                        return None
+
                 builder = PostDataBuilder(item_url=item_url.strip(), region=region.strip())
                 builder.update_from_dict({
                     'title': get_cleaned_value('title') or '',
@@ -190,7 +199,7 @@ def parse_csv_to_post_data(file_input: Union[str, TextIO]) -> List[PostDataBuild
                     'source_price': to_float(get_cleaned_value('source_price')),
                     'source_currency': get_cleaned_value('source_currency') or '',
                     'item_unit_price': to_float(get_cleaned_value('item_unit_price')),
-                    'item_weight': to_float(get_cleaned_value('item_weight')),
+                    'item_weight': to_float_optional(get_cleaned_value('item_weight')),
                 })
                 post_data_list.append(builder)
 
