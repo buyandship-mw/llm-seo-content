@@ -50,21 +50,6 @@ DEFAULT_FALLBACK_IMAGE_URL = "https://example.com/default_item_image.png"
 
 # --- Internal Helper Functions ---
 
-def _choose_better_name(scraped: Optional[str], llm_name: Optional[str]) -> str:
-    """Return the name that seems more concise and meaningful."""
-    scraped = scraped.strip() if scraped else ""
-    llm_name = llm_name.strip() if llm_name else ""
-
-    if not scraped:
-        return llm_name or "Item Name Unavailable"
-    if not llm_name:
-        return scraped
-
-    # Prefer llm_name if it is contained within the scraped name or is shorter
-    if llm_name.lower() in scraped.lower() or len(llm_name) <= len(scraped):
-        return llm_name
-    return scraped
-
 def _build_comprehensive_llm_prompt(
     client_input: PostData,
     available_bns_categories: List[Category],
@@ -274,87 +259,81 @@ def _finalize_data_from_llm_response(
 ) -> Dict[str, Any]:
     final_data = {}
 
-    # --- Populate with defaults first, to ensure all keys exist ---
-    # These are for PostData object, which has more fields than LLM output
-    final_data["item_name"] = "Item Name Unavailable"
-    final_data["image_url"] = DEFAULT_FALLBACK_IMAGE_URL
-    category_labels = [c.label for c in available_bns_categories]
-    warehouse_codes_only = [w.value for w in valid_warehouses]
-    interest_labels_only = [i.label for i in available_interests]
+    # --- Required fields from client input, passed through ---
+    final_data["item_url"] = original_client_input.item_url
+    final_data["region"] = original_client_input.region
 
-    final_data["category"] = (
-        category_labels[0] if category_labels else 0
-    )
-    final_data["interest"] = (
-        interest_labels_only[0] if interest_labels_only else ""
-    )
-    final_data["warehouse"] = (
-        warehouse_codes_only[0] if warehouse_codes_only else "UNKNOWN_WAREHOUSE"
-    )
-    final_data["source_price"] = 0.0
-    final_data["source_currency"] = "N/A"
-    final_data["item_unit_price"] = 0.0
-    final_data["title"] = "Title Generation Failed"
-    final_data["content"] = "Content Generation Failed. Please check item URL."
-
-    # Optional fields from client input, passed through
-    final_data["discounted"] = original_client_input.discounted
-    final_data["item_weight"] = original_client_input.item_weight
-    if final_data["item_weight"] is None and "item_weight" in llm_output:
-        lw = llm_output.get("item_weight")
-        if isinstance(lw, (int, float)):
-            final_data["item_weight"] = float(lw)
-        else:
-            final_data["item_weight"] = None
-    if final_data["item_weight"] is None:
-        print(f"INFO: Weight info unavailable for {original_client_input.item_url}")
+    # --- Optional fields from client input, passed through ---
+    final_data["user"] = original_client_input.user
+    final_data["status"] = original_client_input.status
+    final_data["is_pinned"] = original_client_input.is_pinned
+    final_data["pinned_end_datetime"] = original_client_input.pinned_end_datetime
+    final_data["pinned_expire_hours"] = original_client_input.pinned_expire_hours
+    final_data["disable_comment"] = original_client_input.disable_comment
+    final_data["team_id"] = original_client_input.team_id
     final_data["payment_method"] = original_client_input.payment_method
+    final_data["item_weight"] = original_client_input.item_weight
+    final_data["discounted"] = original_client_input.discounted
 
-    # --- Apply LLM output and client overrides ---
+    # --- Scraper output, passed through ---
+    final_data["image_url"] = original_client_input.image_url
 
-    # 1. item_name
-    final_data["item_name"] = _choose_better_name(
-        original_client_input.item_name,
-        llm_output.get("item_name")
-    )
+    # --- Apply LLM fallbacks ---
+    if original_client_input.item_weight is None:
+        final_data["item_weight"] = llm_output.get("item_weight")
+    else:
+        final_data["item_weight"] = original_client_input.item_weight
 
-    # 2. image_url (use scraper/client value only)
-    if original_client_input.image_url:
-        final_data["image_url"] = original_client_input.image_url
+    if original_client_input.source_price is None:
+        final_data["source_price"] = llm_output.get("source_price")
+    else:
+        final_data["source_price"] = original_client_input.source_price
+    
+    if original_client_input.source_currency is None:
+        final_data["source_currency"] = llm_output.get("source_currency")
+    else:
+        final_data["source_currency"] = original_client_input.source_currency
 
-    # 3. warehouse & target_warehouse_currency
-    valid_warehouse_codes_only = warehouse_codes_only
-    target_warehouse_currency = "N/A"
+    # --- Apply LLM generated / transformed output ---
+    final_data["item_name"] = llm_output.get("item_name")
+    final_data["title"] = llm_output.get("title")
+    final_data["content"] = llm_output.get("content")
 
-    if (
-        original_client_input.warehouse
-        and original_client_input.warehouse in valid_warehouse_codes_only
-    ):
-        final_data["warehouse"] = original_client_input.warehouse
-    elif "warehouse" in llm_output and llm_output["warehouse"] in valid_warehouse_codes_only:
-        final_data["warehouse"] = str(llm_output["warehouse"])
-    elif "warehouse-bns-hk" in valid_warehouse_codes_only:
-        print(
-            "Warning: Client/LLM warehouse invalid or missing. Defaulting to warehouse-bns-hk."
-        )
-        final_data["warehouse"] = "warehouse-bns-hk"
-    elif valid_warehouse_codes_only:
-        print(
-            "Warning: Client/LLM warehouse invalid or missing. Defaulting from valid list."
-        )
-        final_data["warehouse"] = valid_warehouse_codes_only[0]
-    # else it keeps "UNKNOWN_WAREHOUSE" (or previous default)
+    # Validate warehouse selection and get currency
+    warehouse = llm_output.get("warehouse")
+    target_warehouse = next((wh for wh in valid_warehouses if wh.value == warehouse), None)
 
-    # Find currency for the chosen warehouse
-    for wh in valid_warehouses:
-        if wh.value == final_data["warehouse"]:
-            target_warehouse_currency = wh.currency.upper()
-            break
+    if not target_warehouse:
+        print("Warning: Client/LLM warehouse invalid or missing. Defaulting warehouse from valid list.")
+        target_warehouse = valid_warehouses[0]
 
-    if target_warehouse_currency == "N/A" and valid_warehouses:
-        target_warehouse_currency = valid_warehouses[0].currency.upper()
-        print(f"Warning: Could not determine target warehouse currency reliably, defaulting to {target_warehouse_currency}")
+    final_data["warehouse"] = target_warehouse.value
+    target_currency = target_warehouse.currency.upper()
 
+    # Perform price conversion to target_currency
+    source_price = final_data.get("source_price", 0.0)
+    source_currency = final_data.get("source_currency", None)
+
+    if source_price is not None and source_currency and target_currency not in ["N/A", None]:
+        if source_currency == target_currency:
+            final_item_price_converted = source_price
+        else:
+            converted = convert_price(
+                source_price,
+                source_currency,
+                target_currency,
+                currency_conversion_rates,
+            )
+            if converted is not None:
+                final_item_price_converted = converted
+            else:
+                print(f"Warning: Conversion failed from {source_currency} to {target_currency}. Using 0.0.")
+                final_item_price_converted = 0.0
+    else:
+        print(f"Warning: Target warehouse currency is '{target_currency}'. Using 0.0 as price in target currency.")
+        final_item_price_converted = 0.0
+
+    final_data["item_unit_price"] = final_item_price_converted
 
     # 4. category (convert label to numeric value)
     label_to_value = {c.label: c.value for c in available_bns_categories}
@@ -382,69 +361,7 @@ def _finalize_data_from_llm_response(
         )
         final_data["interest"] = next(iter(interest_values))
 
-    # 6. Determine source_price and source_currency (from client input or LLM)
-    source_price: Optional[float] = None
-    source_currency: Optional[str] = None  # Currency as found on site
-
-    if original_client_input.source_price > 0:
-        source_price = original_client_input.source_price
-        final_data["source_price"] = source_price
-    if original_client_input.source_currency:
-        source_currency = original_client_input.source_currency.upper()
-        final_data["source_currency"] = source_currency
-
-    llm_price_val = llm_output.get("source_price")
-    llm_currency_val = llm_output.get("source_currency")
-
-    if source_price is None and isinstance(llm_price_val, (float, int)):
-        source_price = float(llm_price_val)
-        final_data["source_price"] = source_price
-    if source_currency is None and isinstance(llm_currency_val, str) and len(llm_currency_val) == 3:
-        source_currency = llm_currency_val.upper()
-        final_data["source_currency"] = source_currency
-
-    if source_price is None or source_currency is None:
-        print(
-            f"Warning: Valid source price/currency not found from LLM. LLM provided price: '{llm_price_val}', currency: '{llm_currency_val}'."
-        )
-
-    # 6. Perform Price Conversion to target_warehouse_currency
-    final_item_price_converted = 0.0  # Default price
-
-    if source_price is not None and source_currency and target_warehouse_currency not in ["N/A", None]:
-        if source_currency == target_warehouse_currency:
-            final_item_price_converted = source_price
-        else:
-            converted = convert_price(
-                source_price,
-                source_currency,
-                target_warehouse_currency,
-                currency_conversion_rates,
-            )
-            if converted is not None:
-                final_item_price_converted = converted
-            else:
-                print(
-                    f"Warning: Conversion failed from {source_currency} to {target_warehouse_currency}. Using 0.0."
-                )
-                final_item_price_converted = 0.0
-    else:
-        print(
-            f"Warning: Target warehouse currency is '{target_warehouse_currency}'. Using 0.0 as price in target currency."
-        )
-        final_item_price_converted = 0.0
-
-    final_data["item_unit_price"] = final_item_price_converted
-
-
-    # 7. title & content from LLM
-    if llm_output.get("title"):
-        final_data["title"] = str(llm_output.get("title"))
-    if llm_output.get("content"):
-        final_data["content"] = str(llm_output.get("content"))
-
     return final_data
-
 
 # --- Public API Function ---
 def generate_post(
