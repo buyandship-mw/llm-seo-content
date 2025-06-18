@@ -8,7 +8,7 @@ from modules.csv_parser import (
     load_forex_rates_from_json,
     parse_csv_to_post_data,
 )
-from modules.csv_writer import write_post_data_to_csv
+
 from modules.executor import process_batch_input_data
 
 # --- Configuration ---
@@ -65,16 +65,15 @@ def run_pipeline():
         available_interests=interests,
         warehouses=warehouses,
         rates=rates,
-        ai_client=ai_client
+        ai_client=ai_client,
+        output_filepath=OUTPUT_POST_DATA_FILE,
     )
 
-    # 4. Write results to an output file
+    # 4. Inform user where results are written
     if generated_posts:
-        print(f"\nWriting {len(generated_posts)} generated posts to: {OUTPUT_POST_DATA_FILE}")
-        try:
-            write_post_data_to_csv(OUTPUT_POST_DATA_FILE, generated_posts)
-        except Exception as e:
-            print(f"Failed to write output data: {e}")
+        print(
+            f"\nAppended {len(generated_posts)} posts to: {OUTPUT_POST_DATA_FILE}"
+        )
     else:
         print("No posts were generated.")
 
