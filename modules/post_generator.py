@@ -234,7 +234,13 @@ def _finalize_data_from_llm_response(
     source_price = final_data.get("source_price", 0.0)
     source_currency = final_data.get("source_currency", None)
 
-    if source_price is not None and source_currency and target_currency not in ["N/A", None]:
+    if source_price is None:
+        print("Warning: Source price is None. Using 0.0 as price in target currency.")
+        final_item_price_converted = 0.0
+    elif source_currency is None or source_currency == "N/A":
+        print("Warning: Source currency is None or 'N/A'. Using 0.0 as price in target currency.")
+        final_item_price_converted = 0.0
+    else:
         if source_currency == target_currency:
             final_item_price_converted = source_price
         else:
@@ -249,9 +255,6 @@ def _finalize_data_from_llm_response(
             else:
                 print(f"Warning: Conversion failed from {source_currency} to {target_currency}. Using 0.0.")
                 final_item_price_converted = 0.0
-    else:
-        print(f"Warning: Target warehouse currency is '{target_currency}'. Using 0.0 as price in target currency.")
-        final_item_price_converted = 0.0
 
     final_data["item_unit_price"] = final_item_price_converted
 

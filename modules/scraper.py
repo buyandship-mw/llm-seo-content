@@ -13,7 +13,7 @@ APP = FirecrawlApp(api_key=FIRECRAWL_API_KEY)
 
 class ExtractSchema(BaseModel):
     item_name_en: str
-    image_url: str
+    item_image_url: str
     price: float
     currency_code_not_symbol: str
     item_weight_g: float
@@ -38,7 +38,7 @@ def extract_product_data(url: str) -> dict:
     """
     Extracts product data from a given URL using the provided schema and returns the JSON result.
 
-    Schema of the expected data:
+    Output JSON schema:
     - item_name: str
     - image_url: str
     - source_price: float
@@ -48,7 +48,7 @@ def extract_product_data(url: str) -> dict:
     raw_data = extract_product_data_raw(url=url)
     return {
         "item_name": raw_data.get("item_name_en", ""),
-        "image_url": raw_data.get("image_url", ""),
+        "image_url": raw_data.get("item_image_url", ""),
         "source_price": raw_data.get("price", None),
         "source_currency": raw_data.get("currency_code_not_symbol", ""),
         "item_weight": raw_data.get("item_weight_g", None),
@@ -56,6 +56,6 @@ def extract_product_data(url: str) -> dict:
 
 # Example usage:
 if __name__ == "__main__":
-    url = 'https://www.amazon.co.jp/dp/B0DB2G2FSG'
+    url = 'https://item.rakuten.co.jp/shimada-ya/4550557799958/?variantId=4550557799934&s-id=ph_sp_itemname'
     data = extract_product_data(url)
     print(data)
