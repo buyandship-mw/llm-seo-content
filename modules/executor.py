@@ -6,6 +6,7 @@ from modules.openai_client import OpenAIClient
 from modules.post_generator import generate_post
 from modules.scraper import extract_product_data
 from modules.post_data_builder import PostDataBuilder
+from modules.csv_writer import append_post_data_to_csv
 
 def process_batch_input_data(
     input_data_list: List[PostData],
@@ -13,7 +14,8 @@ def process_batch_input_data(
     available_interests: List[Interest],
     warehouses: List[Warehouse],
     rates: Dict,
-    ai_client: OpenAIClient
+    ai_client: OpenAIClient,
+    output_filepath: str | None = None,
 ) -> List[PostData]:
     """
     Processes a list of ``PostData`` items and returns a list of ``PostData`` results.
@@ -50,6 +52,13 @@ def process_batch_input_data(
                 model="gpt-4.1-mini"
             )
             all_post_data.append(post_data_result)
+            if output_filepath:
+                try:
+                    append_post_data_to_csv(output_filepath, post_data_result)
+                except Exception as write_err:
+                    print(
+                        f"Failed to append result for {input_item.item_url} to '{output_filepath}': {write_err}"
+                    )
             print(f"Successfully processed item: '{input_item.item_url}'")
         except ValueError as ve:
             print(f"ValueError processing item '{input_item.item_url}': {ve}. Skipping this item.")
