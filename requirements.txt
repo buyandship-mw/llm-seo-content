@@ -2,3 +2,5 @@ openai
 python-dotenv
 pytest
 requests
+firecrawl
+pydantic

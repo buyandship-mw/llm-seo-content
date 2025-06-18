@@ -4,7 +4,7 @@ from dataclasses import asdict
 from modules.models import PostData, Category, Warehouse, Interest
 from modules.openai_client import OpenAIClient
 from modules.post_generator import generate_post
-from modules.scraper import scrape_and_extract
+from modules.scraper import extract_product_data
 from modules.post_data_builder import PostDataBuilder
 
 def process_batch_input_data(
@@ -32,7 +32,7 @@ def process_batch_input_data(
         # --- Scrape additional data before invoking the LLM ---
         enriched_input = input_item
         try:
-            scraped = scrape_and_extract(input_item.item_url, input_item.region)
+            scraped = extract_product_data(url=input_item.item_url)
             builder = PostDataBuilder.from_dict(asdict(input_item))
             builder.update_from_dict(scraped)
             enriched_input = builder.build()
