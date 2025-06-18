@@ -23,6 +23,16 @@ class RawJsonSchema(BaseModel):
 
 JSON_CONFIG = JsonConfig(schema=RawJsonSchema)
 
+# ─── Helpers ────────────────────────────────────────────────────────────────────
+
+def strip_query(url: str) -> str:
+    """
+    Remove query parameters from a URL, returning everything before the first '?'.
+    """
+    if not url:
+        return url
+    return url.split("?", 1)[0]
+
 # ─── Parsers ────────────────────────────────────────────────────────────────────
 
 def parse_metadata(meta: dict) -> dict:
@@ -37,7 +47,7 @@ def parse_metadata(meta: dict) -> dict:
 
     return {
         "item_name":   get_first(["og:title", "twitter:title", "title", "ogTitle", "name"]),
-        "image_url":   get_first(["og:image", "ogImage", "twitter:image:src", "image"]),
+        "image_url":   strip_query(get_first(["og:image", "ogImage", "twitter:image:src", "image"])),
         "source_price":    float(get_first(["price"])) if get_first(["price"]) else None,
         "source_currency": get_first(["priceCurrency", "currency"]),
         "item_weight":     float(get_first(["weight", "item_weight_g"])) if get_first(["weight", "item_weight_g"]) else None,
@@ -46,7 +56,7 @@ def parse_metadata(meta: dict) -> dict:
 def parse_json(json_data: dict) -> dict:
     return {
         "item_name":      json_data.get("item_name_en"),
-        "image_url":      json_data.get("item_image_url"),
+        "image_url":      strip_query(json_data.get("item_image_url")),
         "source_price":   json_data.get("price"),
         "source_currency":json_data.get("currency_code_not_symbol"),
         "item_weight":    json_data.get("item_weight_g"),
