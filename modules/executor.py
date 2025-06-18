@@ -28,11 +28,11 @@ def process_batch_input_data(
     all_post_data: List[PostData] = []
     for i, input_item in enumerate(input_data_list):
         print(f"Processing item {i + 1}/{len(input_data_list)}: '{input_item.item_url}'...")
-
         # --- Scrape additional data before invoking the LLM ---
         enriched_input = input_item
         try:
             scraped = extract_product_data(url=input_item.item_url)
+            print(f"Scraped data for {input_item.item_url}: {scraped}")
             builder = PostDataBuilder.from_dict(asdict(input_item))
             builder.update_from_dict(scraped)
             enriched_input = builder.build()
@@ -41,7 +41,7 @@ def process_batch_input_data(
 
         try:
             post_data_result = generate_post(
-                client_input=enriched_input,
+                item_data=enriched_input,
                 available_bns_categories=available_categories,
                 available_interests=available_interests,
                 valid_warehouses=warehouses,

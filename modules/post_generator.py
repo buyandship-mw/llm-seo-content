@@ -46,11 +46,9 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
     }]
 }
 
-DEFAULT_FALLBACK_IMAGE_URL = "https://example.com/default_item_image.png"
-
 # --- Internal Helper Functions ---
 def _build_comprehensive_llm_prompt(
-    client_input: PostData,
+    item_data: PostData,
     available_bns_categories: List[Category],
     available_interests: List[Interest],
     valid_warehouses_for_mcq: List[str]  # Just the warehouse codes for the prompt
@@ -62,32 +60,18 @@ def _build_comprehensive_llm_prompt(
     # --- Step-by-step workflow ---
     prompt_lines.append(
         "\n--- STEP-BY-STEP WORKFLOW ---"
-        "\n0. Perform a web search using the provided item URL and related metadata to retrieve up-to-date product information before any other steps."
-        "\n1. Parse all provided fields, noting any pre-filled values."
-        "\n2. Scraped data may already include item_name, price, or currency. "
-        "\nIf item_weight is missing, search the product details to find it in grams. If unavailable, return None."
-        "\nIf price or currency are missing, try to determine them. "
-        "\nAlso attempt your own item_name and later compare it with the scraped value."
-        "\n3. Extract each required data field. If information is unavailable, return None."
-        "\n4. Select the most suitable category, warehouse, and interest from the lists above (never create new values)."
-        "\n5. Generate region-specific 'title' and 'content' matching the tone and structure of the provided examples."
-        "\n6. Output a single valid JSON object using the structure below with no commentary or markdown."
+        "\n1. Cleanup the item name provided by the scraper."
+        "\n2. Select the most suitable category, warehouse, and interest from the lists above (never create new values)."
+        "\n3. Generate region-specific 'title' and 'content' matching the exact structure and tone of the provided examples."
+        "\n4. Output a single valid JSON object using the structure below with no commentary or markdown."
     )
 
     # --- Output format & guardrails ---
     prompt_lines.append("\n--- REQUIRED JSON OUTPUT STRUCTURE ---")
     prompt_lines.append(
-        "Your entire response MUST be exactly one JSON object with these keys. Use the fallbacks above whenever a value can't be found."
+        "Your entire response MUST be exactly one JSON object with these keys."
     )
-
     output_fields = ["item_name", "category", "interest", "warehouse", "title", "content"]
-    if client_input.item_weight is None:
-        output_fields.append("item_weight")
-    if not client_input.source_price:
-        output_fields.append("source_price")
-    if not client_input.source_currency:
-        output_fields.append("source_currency")
-
     field_desc = {
         "item_name": '  "item_name": "string"',
         "category": '  "category": "string_from_list"',
@@ -99,81 +83,57 @@ def _build_comprehensive_llm_prompt(
         "content": '  "content": "string_plain_text"',
         "item_weight": '  "item_weight": "float_or_null"',
     }
-
     output_lines = ["{\n"]
     for idx, key in enumerate(output_fields):
         comma = "," if idx < len(output_fields) - 1 else ""
         output_lines.append(f"{field_desc[key]}{comma}\n")
     output_lines.append("}")
     prompt_lines.append("".join(output_lines))
-    prompt_lines.append(
-        "Reminder: Only use the provided lists for category, interest, and warehouse. If uncertain, default to the first list item."
-    )
 
     prompt_lines.append("\n--- CLIENT-PROVIDED DATA & INSTRUCTIONS ---")
-    prompt_lines.append(f"Item URL to analyze: {client_input.item_url}")
-    prompt_lines.append(f"Target region for the post style: {client_input.region}")
+    prompt_lines.append(f"Item URL to analyze: {item_data.item_url}")
+    prompt_lines.append(f"Target region for the post style: {item_data.region}")
 
     # Field-specific instructions
     # item_name
     prompt_lines.append(
-        "\n--- ITEM NAME EXTRACTION & TRANSLATION ---"
+        f"The scraper found the name '{item_data.item_name}'."
     )
-    if client_input.item_name:
-        prompt_lines.append(
-            f"- A scraper found the name '{client_input.item_name}'. "
-            "Translate this item name to English, then compare with the scraped name. "
-            "Choose the most clear English name and place it in the 'item_name' field."
-        )
-    else:
-        prompt_lines.append(
-            f"- Determine the item's name from '{client_input.item_url}'. "
-            "Translate the extracted name to English and place the result in the 'item_name' field."
-        )
+    prompt_lines.append(
+        "- Clean this up by returning only the brand and main product type. "
+        "Remove redundant words, repeated descriptors, and all marketing or occasion-related text. "
+        "Return only the cleaned name in the 'item_name' field."
+    )
 
-    # --- warehouse (MCQ) ---
+    # warehouse (MCQ)
     prompt_lines.append(
-        "- Infer the primary sales location of the item (e.g. country or city) from the URL and any other metadata."
+        f"The scraper found the item currency to be '{item_data.source_currency}'."
     )
     prompt_lines.append(
-        f"- From the following list of valid warehouses: {valid_warehouses_for_mcq}, select the warehouse geographically closest to the sales location. Do not select the warehouse based on the target content region or style."
+        f"- From this list of valid warehouses: {valid_warehouses_for_mcq}, select the warehouse that is geographically closest to the region where this currency is primarily used. Do not select the warehouse based on the target content region or style."
     )
 
     # category (MCQ)
     prompt_lines.append(
-        f"- From the following list of valid BNS Post Categories: {category_labels}, select the single most appropriate category for the item based on all its details. Place your choice in the 'category' field."
+        f"- From the following list of valid post categories: {category_labels}, select the single most appropriate category for the post. Place your choice in the 'category' field."
     )
 
     # interest (MCQ)
     prompt_lines.append(
-        f"- From the following list of valid interests: {interest_labels}, select the single most appropriate interest for the item. Place your choice in the 'interest' field."
+        f"- From the following list of valid item categories: {interest_labels}, select the single most appropriate category for the item. Place your choice in the 'interest' field."
     )
-
-    # source_currency & source_price
-    if client_input.source_price > 0 or client_input.source_currency:
-        prompt_lines.append(
-            "- Use any provided 'source_price' or 'source_currency' values as-is. "
-            "Only determine whichever of these two fields is missing."
-        )
-    else:
-        prompt_lines.append(
-            f"- Determine the item's price from '{client_input.item_url}'. Extract the numeric price and currency. "
-            "Convert the currency to its three-letter code (e.g., USD). "
-            "Place the numeric price in 'source_price' and the code in 'source_currency'. "
-            "If price is not found, use None for price and None for currency."
-        )
     
     # title & content
-    master_examples_list_for_region = MASTER_POST_EXAMPLES.get(client_input.region.upper())
+    master_examples_list_for_region = MASTER_POST_EXAMPLES.get(item_data.region.upper())
     if not master_examples_list_for_region: # Check if the list is None or empty
         raise NotImplementedError(
-            f"CRITICAL PROMPT WARNING: No master examples found for region '{client_input.region}'. "
+            f"CRITICAL PROMPT WARNING: No master examples found for region '{item_data.region}'. "
             "ICL for title/content will not be effective."
         )
     else:
         master_examples_json_str = json.dumps(master_examples_list_for_region, ensure_ascii=False, indent=2)
         language_guidance = (
-            f"Both title and content must be in the same language as these master examples for '{client_input.region}', "
+            f"Both title and content must be in the same language as these master examples for '{item_data.region}', "
             "and content should similarly match their language style."
         )
 
@@ -184,7 +144,7 @@ def _build_comprehensive_llm_prompt(
     )
     prompt_lines.append(
         f"The style, tone, and structure for 'title' and 'content' should be closely guided by the master examples "
-        f"provided below for the {client_input.region} region. {language_guidance} "
+        f"provided below for the {item_data.region} region. {language_guidance} "
         "The 'content' should generally have two main sections based on your search: "
         "1. a product introduction (highlighting key features/benefits), and "
         "2. a brief summary of user reviews or public sentiment."
@@ -224,7 +184,7 @@ def _invoke_comprehensive_llm(
 
 def _finalize_data_from_llm_response(
     llm_output: Dict[str, Any],
-    original_client_input: PostData,
+    original_item_data: PostData,
     available_bns_categories: List[Category],
     available_interests: List[Interest],
     valid_warehouses: List[Warehouse],
@@ -233,39 +193,26 @@ def _finalize_data_from_llm_response(
     final_data = {}
 
     # --- Required fields from client input, passed through ---
-    final_data["item_url"] = original_client_input.item_url
-    final_data["region"] = original_client_input.region
+    final_data["item_url"] = original_item_data.item_url
+    final_data["region"] = original_item_data.region
 
     # --- Optional fields from client input, passed through ---
-    final_data["user"] = original_client_input.user
-    final_data["status"] = original_client_input.status
-    final_data["is_pinned"] = original_client_input.is_pinned
-    final_data["pinned_end_datetime"] = original_client_input.pinned_end_datetime
-    final_data["pinned_expire_hours"] = original_client_input.pinned_expire_hours
-    final_data["disable_comment"] = original_client_input.disable_comment
-    final_data["team_id"] = original_client_input.team_id
-    final_data["payment_method"] = original_client_input.payment_method
-    final_data["item_weight"] = original_client_input.item_weight
-    final_data["discounted"] = original_client_input.discounted
+    final_data["user"] = original_item_data.user
+    final_data["status"] = original_item_data.status
+    final_data["is_pinned"] = original_item_data.is_pinned
+    final_data["pinned_end_datetime"] = original_item_data.pinned_end_datetime
+    final_data["pinned_expire_hours"] = original_item_data.pinned_expire_hours
+    final_data["disable_comment"] = original_item_data.disable_comment
+    final_data["team_id"] = original_item_data.team_id
+    final_data["payment_method"] = original_item_data.payment_method
+    final_data["item_weight"] = original_item_data.item_weight
+    final_data["discounted"] = original_item_data.discounted
 
     # --- Scraper output, passed through ---
-    final_data["image_url"] = original_client_input.image_url
-
-    # --- Apply LLM fallbacks ---
-    if original_client_input.item_weight is None:
-        final_data["item_weight"] = llm_output.get("item_weight")
-    else:
-        final_data["item_weight"] = original_client_input.item_weight
-
-    if original_client_input.source_price is None:
-        final_data["source_price"] = llm_output.get("source_price")
-    else:
-        final_data["source_price"] = original_client_input.source_price
-    
-    if original_client_input.source_currency is None:
-        final_data["source_currency"] = llm_output.get("source_currency")
-    else:
-        final_data["source_currency"] = original_client_input.source_currency
+    final_data["image_url"] = original_item_data.image_url
+    final_data["source_price"] = original_item_data.source_price
+    final_data["source_currency"] = original_item_data.source_currency
+    final_data["item_weight"] = original_item_data.item_weight
 
     # --- Apply LLM generated / transformed output ---
     final_data["item_name"] = llm_output.get("item_name")
@@ -312,8 +259,8 @@ def _finalize_data_from_llm_response(
     label_to_value = {c.label: c.value for c in available_bns_categories}
     value_to_label = {c.value: c.label for c in available_bns_categories}
     values = set(label_to_value.values())
-    if original_client_input.category and original_client_input.category in values:
-        final_data["category"] = original_client_input.category
+    if original_item_data.category and original_item_data.category in values:
+        final_data["category"] = original_item_data.category
     elif "category" in llm_output and llm_output["category"] in label_to_value:
         final_data["category"] = label_to_value[llm_output["category"]]
     elif values:
@@ -327,8 +274,8 @@ def _finalize_data_from_llm_response(
     # Interest (convert label to value)
     label_to_interest_value = {i.label: i.value for i in available_interests}
     interest_values = set(label_to_interest_value.values())
-    if original_client_input.interest and original_client_input.interest in interest_values:
-        final_data["interest"] = original_client_input.interest
+    if original_item_data.interest and original_item_data.interest in interest_values:
+        final_data["interest"] = original_item_data.interest
     elif "interest" in llm_output and llm_output["interest"] in label_to_interest_value:
         final_data["interest"] = label_to_interest_value[llm_output["interest"]]
     elif interest_values:
@@ -341,7 +288,7 @@ def _finalize_data_from_llm_response(
 
 # --- Public API Function ---
 def generate_post(
-    client_input: PostData,
+    item_data: PostData,
     available_bns_categories: List[Category],
     available_interests: List[Interest],
     valid_warehouses: List[Warehouse],
@@ -349,13 +296,13 @@ def generate_post(
     ai_client: OpenAIClient,
     model: str
 ) -> PostData:
-    print(f"INFO: Starting post generation for URL: {client_input.item_url}, Region: {client_input.region}")
+    print(f"INFO: Starting post generation for URL: {item_data.item_url}, Region: {item_data.region}")
 
 
     valid_warehouses_for_prompt = [wh.value for wh in valid_warehouses]
 
     user_prompt, expected_keys = _build_comprehensive_llm_prompt(
-        client_input,
+        item_data,
         available_bns_categories,
         available_interests,
         valid_warehouses_for_prompt
@@ -366,7 +313,7 @@ def generate_post(
     if llm_response_dict:
         finalized_data_dict = _finalize_data_from_llm_response(
             llm_response_dict,
-            client_input,
+            item_data,
             available_bns_categories,
             available_interests,
             valid_warehouses,
@@ -375,7 +322,7 @@ def generate_post(
         
         from dataclasses import asdict
 
-        base_data = asdict(client_input)
+        base_data = asdict(item_data)
         base_data.update(finalized_data_dict)
         return PostData(**base_data)
     else:
@@ -386,7 +333,7 @@ if __name__ == '__main__':
     print("--- Post Generator Example ---")
 
     # Dummy data for testing
-    client_input = PostData(
+    item_data = PostData(
         title="",
         content="",
         image_url="",
@@ -445,7 +392,7 @@ if __name__ == '__main__':
 
     print("\n--- Generating Post for Sample Input ---")
     post1 = generate_post(
-        client_input,
+        item_data,
         available_cats,
         available_interests,
         warehouses,
