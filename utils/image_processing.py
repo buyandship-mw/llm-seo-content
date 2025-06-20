@@ -24,17 +24,40 @@ def pad_to_square(img: Image.Image, color: Tuple[int, int, int] = (255, 255, 255
     new_img.paste(img, (paste_x, paste_y))
     return new_img
 
-
-def save_image_from_url(url: str, output_folder: str, color: Tuple[int, int, int] = (255, 255, 255)) -> str:
-    """Download ``url`` and save a padded square image to ``output_folder``.
-
+def save_image_from_url(
+    url: str, 
+    output_folder: str, 
+    color: Tuple[int, int, int] = (255, 255, 255),
+    headers: dict = None
+) -> str:
+    """Download `url` and save a padded square image to `output_folder`.
     Returns the path to the saved image.
+    Raises RuntimeError if download fails.
     """
     if not url:
         raise ValueError("Image URL must not be empty")
 
     os.makedirs(output_folder, exist_ok=True)
-    img = download_image(url)
+
+    # --- Begin: Download image with headers and error handling ---
+    if headers is None:
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Referer": url.split("/", 3)[:3] and "/".join(url.split("/", 3)[:3]) + "/",
+        }
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        img = Image.open(BytesIO(resp.content)).convert("RGB")
+    except requests.exceptions.HTTPError as e:
+        if resp.status_code == 403:
+            raise RuntimeError(f"Access forbidden (403) when downloading {url}. Try setting a different Referer or User-Agent.")
+        else:
+            raise RuntimeError(f"HTTP error {resp.status_code} when downloading {url}: {e}")
+    except Exception as e:
+        raise RuntimeError(f"Error downloading image from {url}: {e}")
+    # --- End: Download image with headers and error handling ---
+
     square_img = pad_to_square(img, color=color)
     filename = hashlib.sha256(url.encode()).hexdigest()[:16] + ".jpg"
     output_path = os.path.join(output_folder, filename)
@@ -43,7 +66,7 @@ def save_image_from_url(url: str, output_folder: str, color: Tuple[int, int, int
 
 if __name__ == "__main__":
     # Example usage
-    url = "https://unicorn.lush.com/media/file_upload/9x16%20Wasabi%20Shan%20Kui%20Shampoo%20Cover%20Image%20_%20Lush%20Stories_21eb1c7e.jpg"
+    url = "https://dottodot.co.kr/web/product/big/202503/f3a8727a1eab30541f9c3ca6cce495ab.jpg"
     output_folder = "./output_images"
     try:
         local_path = save_image_from_url(url, output_folder)
