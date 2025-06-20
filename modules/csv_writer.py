@@ -19,7 +19,7 @@ def write_post_data_to_csv(filepath: str, post_data_list: List[PostData]) -> Non
 
     try:
         with open(filepath, "w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
             for post_data_item in post_data_list:
                 writer.writerow(post_data_item.__dict__)
@@ -44,7 +44,7 @@ def append_post_data_to_csv(filepath: str, post_data: PostData) -> None:
 
     try:
         with open(filepath, "a", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             if not file_exists:
                 writer.writeheader()
             writer.writerow(post_data.__dict__)

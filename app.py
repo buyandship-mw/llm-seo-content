@@ -19,6 +19,7 @@ WAREHOUSES_FILE = os.path.join(CURRENT_DIR, "presets/warehouses.json")
 FOREX_RATES_FILE = os.path.join(CURRENT_DIR, "presets/forex_rates.json")
 INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test.csv")
 OUTPUT_POST_DATA_FILE = os.path.join(CURRENT_DIR, "output.csv")
+OUTPUT_IMAGE_FOLDER = os.path.join(CURRENT_DIR, "output_images")
 
 def run_pipeline():
     """Main function to run the post generation pipeline."""
@@ -55,7 +56,7 @@ def run_pipeline():
 
     # 2. Initialize AI Client
     ai_client = OpenAIClient()
-    input_items = input_items[:21]
+    input_items = input_items[:1]
 
     # # 3. Process the batch of input data
     print(f"\nProcessing {len(input_items)} items...")
@@ -67,6 +68,7 @@ def run_pipeline():
         rates=rates,
         ai_client=ai_client,
         output_filepath=OUTPUT_POST_DATA_FILE,
+        image_output_folder=OUTPUT_IMAGE_FOLDER,
     )
 
     # 4. Inform user where results are written
@@ -74,6 +76,7 @@ def run_pipeline():
         print(
             f"\nAppended {len(generated_posts)} posts to: {OUTPUT_POST_DATA_FILE}"
         )
+        print(f"Saved images to folder: {OUTPUT_IMAGE_FOLDER}")
     else:
         print("No posts were generated.")
 

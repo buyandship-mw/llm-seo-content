@@ -7,6 +7,7 @@ from modules.post_generator import generate_post
 from modules.scraper import extract_product_data
 from modules.post_data_builder import PostDataBuilder
 from modules.csv_writer import append_post_data_to_csv
+from utils.image_processing import save_image_from_url
 
 def process_batch_input_data(
     input_data_list: List[PostData],
@@ -16,9 +17,14 @@ def process_batch_input_data(
     rates: Dict,
     ai_client: OpenAIClient,
     output_filepath: str | None = None,
+    image_output_folder: str | None = None,
 ) -> List[PostData]:
     """
-    Processes a list of ``PostData`` items and returns a list of ``PostData`` results.
+    Processes a list of ``PostData`` items and returns a list of results.
+
+    If ``image_output_folder`` is provided, each post's ``image_url`` is
+    downloaded and padded to a square image saved in that folder. The local
+    path is stored on the ``PostData`` instance as ``local_image_path``.
     """
     if not available_categories:
         raise ValueError("The 'available_categories' list cannot be empty.")
@@ -51,6 +57,14 @@ def process_batch_input_data(
                 ai_client=ai_client,
                 model="gpt-4.1-mini"
             )
+            if image_output_folder and post_data_result.image_url:
+                try:
+                    local_path = save_image_from_url(
+                        post_data_result.image_url, image_output_folder
+                    )
+                    setattr(post_data_result, "local_image_path", local_path)
+                except Exception as img_err:
+                    print(f"Error processing {post_data_result.image_url}: {img_err}")
             all_post_data.append(post_data_result)
             if output_filepath:
                 try:
