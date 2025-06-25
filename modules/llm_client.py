@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 class LLMClient:
     """Abstract base class for LLM clients."""
@@ -18,6 +18,6 @@ class LLMClient:
         prompt: str,
         model: str,
         temperature: float | None = 1.0,
-    ) -> Optional[str]:
-        """Return a completion utilizing web search when supported."""
+    ) -> Tuple[Any, Optional[str]]:
+        """Return a tuple of raw response and extracted text from a web-search-enabled completion."""
         raise NotImplementedError
