@@ -1,13 +1,22 @@
 from typing import Dict, List
 
 from dataclasses import asdict
-from modules.core.models import PostData, Category, Warehouse, Interest
+from modules.core.models import (
+    PostData,
+    Category,
+    Warehouse,
+    Interest,
+    AbortedGeneration,
+)
 from modules.clients.llm_client import LLMClient
 from modules.clients.openai_client import OpenAIClient
 from modules.generation.post_generator import generate_post
 from modules.scraper.scraper import extract_product_data
 from modules.generation.post_data_builder import PostDataBuilder
-from modules.io.csv_writer import append_post_data_to_csv
+from modules.io.csv_writer import (
+    append_post_data_to_csv,
+    append_aborted_generation_to_csv,
+)
 from utils.image_processing import save_image_from_url
 
 def process_batch_input_data(
@@ -19,6 +28,7 @@ def process_batch_input_data(
     ai_client: LLMClient,
     output_filepath: str | None = None,
     image_output_folder: str | None = None,
+    aborted_filepath: str | None = None,
 ) -> List[PostData]:
     """
     Processes a list of ``PostData`` items and returns a list of results.
@@ -55,6 +65,18 @@ def process_batch_input_data(
                 print(
                     f"Required attributes {missing_scrape_attrs} missing after scraping {input_item.item_url}. Skipping this item."
                 )
+                if aborted_filepath:
+                    aborted = AbortedGeneration(
+                        item_url=input_item.item_url,
+                        region=input_item.region,
+                        abort_reason=", ".join(missing_scrape_attrs),
+                    )
+                    try:
+                        append_aborted_generation_to_csv(aborted_filepath, aborted)
+                    except Exception as write_err:
+                        print(
+                            f"Failed to record aborted generation for {input_item.item_url} to '{aborted_filepath}': {write_err}"
+                        )
                 continue
         except Exception as scrape_err:
             print(f"Warning: Scraper failed for {input_item.item_url}: {scrape_err}. Using original input.")
@@ -88,8 +110,32 @@ def process_batch_input_data(
             print(f"Successfully processed item: '{input_item.item_url}'")
         except ValueError as ve:
             print(f"ValueError processing item '{input_item.item_url}': {ve}. Skipping this item.")
+            if aborted_filepath:
+                aborted = AbortedGeneration(
+                    item_url=input_item.item_url,
+                    region=input_item.region,
+                    abort_reason=str(ve),
+                )
+                try:
+                    append_aborted_generation_to_csv(aborted_filepath, aborted)
+                except Exception as write_err:
+                    print(
+                        f"Failed to record aborted generation for {input_item.item_url} to '{aborted_filepath}': {write_err}"
+                    )
         except Exception as e:
             print(f"An unexpected error occurred while processing item '{input_item.item_url}': {e}. Skipping this item.")
+            if aborted_filepath:
+                aborted = AbortedGeneration(
+                    item_url=input_item.item_url,
+                    region=input_item.region,
+                    abort_reason=str(e),
+                )
+                try:
+                    append_aborted_generation_to_csv(aborted_filepath, aborted)
+                except Exception as write_err:
+                    print(
+                        f"Failed to record aborted generation for {input_item.item_url} to '{aborted_filepath}': {write_err}"
+                    )
             # Optionally, create a PostData object with error details here
             
     return all_post_data

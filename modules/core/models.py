@@ -48,3 +48,10 @@ class Warehouse:
     label: str
     value: str
     currency: str
+
+
+@dataclass
+class AbortedGeneration:
+    item_url: str
+    region: str
+    abort_reason: str

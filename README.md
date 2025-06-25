@@ -10,4 +10,7 @@ To run a module on its own: `python3 -m modules/<module>.py`
 
 To run the test suite: `pytest`
 
+Failures during post generation are logged to `aborted.csv` with the item URL,
+region, and reason.
+
 Firecrawl scraper: https://www.firecrawl.dev/playground
