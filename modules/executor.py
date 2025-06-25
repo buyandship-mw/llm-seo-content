@@ -44,6 +44,17 @@ def process_batch_input_data(
             builder = PostDataBuilder.from_dict(asdict(input_item))
             builder.update_from_dict(scraped)
             enriched_input = builder.build()
+
+            missing_scrape_attrs = [
+                a
+                for a in ("image_url", "source_price", "source_currency")
+                if getattr(enriched_input, a) in (None, "")
+            ]
+            if missing_scrape_attrs:
+                print(
+                    f"Required attributes {missing_scrape_attrs} missing after scraping {input_item.item_url}. Skipping this item."
+                )
+                continue
         except Exception as scrape_err:
             print(f"Warning: Scraper failed for {input_item.item_url}: {scrape_err}. Using original input.")
 
