@@ -314,30 +314,29 @@ def _assemble_post_data(
     target_currency = target_warehouse.currency.upper()
 
     # Perform price conversion to target_currency
-    source_price = final_data.get("source_price", 0.0)
-    source_currency = final_data.get("source_currency", None)
+    source_price = final_data.get("source_price")
+    source_currency = final_data.get("source_currency")
 
-    if source_price is None:
-        print("Warning: Source price is None. Using 0.0 as price in target currency.")
-        final_item_price_converted = 0.0
-    elif source_currency is None or source_currency == "N/A":
-        print("Warning: Source currency is None or 'N/A'. Using 0.0 as price in target currency.")
-        final_item_price_converted = 0.0
+    if source_price in (None, 0, 0.0):
+        raise ValueError("Source price is missing or zero, cannot generate post")
+    if source_currency is None or source_currency in ("", "N/A"):
+        raise ValueError("Source currency is missing, cannot generate post")
+
+    if source_currency == target_currency:
+        final_item_price_converted = source_price
     else:
-        if source_currency == target_currency:
-            final_item_price_converted = source_price
+        converted = convert_price(
+            source_price,
+            source_currency,
+            target_currency,
+            currency_conversion_rates,
+        )
+        if converted is not None:
+            final_item_price_converted = converted
         else:
-            converted = convert_price(
-                source_price,
-                source_currency,
-                target_currency,
-                currency_conversion_rates,
+            raise ValueError(
+                f"Conversion failed from {source_currency} to {target_currency}"
             )
-            if converted is not None:
-                final_item_price_converted = converted
-            else:
-                print(f"Warning: Conversion failed from {source_currency} to {target_currency}. Using 0.0.")
-                final_item_price_converted = 0.0
 
     final_data["item_unit_price"] = final_item_price_converted
 

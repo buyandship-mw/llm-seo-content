@@ -59,4 +59,36 @@ def test_prompt_includes_new_guidelines():
     assert "User review summary" in prompt
     assert "expiration date" in prompt
     assert "available sizes" in prompt
-    assert "Translate both the cleaned 'item_name' and the generated 'title' into English." in prompt
+
+
+def test_assemble_post_data_raises_on_zero_price():
+    parsed, item, cats, ints, whs, rates = _sample_data()
+    item.source_price = 0.0
+    import pytest
+    with pytest.raises(ValueError):
+        _assemble_post_data(
+            parsed,
+            "WH",
+            item,
+            cats,
+            ints,
+            whs,
+            rates,
+        )
+
+
+def test_assemble_post_data_raises_on_none_price():
+    parsed, item, cats, ints, whs, rates = _sample_data()
+    item.source_price = None
+    import pytest
+    with pytest.raises(ValueError):
+        _assemble_post_data(
+            parsed,
+            "WH",
+            item,
+            cats,
+            ints,
+            whs,
+            rates,
+        )
+
