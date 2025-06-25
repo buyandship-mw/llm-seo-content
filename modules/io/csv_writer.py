@@ -4,7 +4,7 @@ from typing import List
 from dataclasses import fields, is_dataclass
 import os
 
-from modules.core.models import PostData
+from modules.core.models import PostData, AbortedGeneration
 
 def write_post_data_to_csv(filepath: str, post_data_list: List[PostData]) -> None:
     """Writes a list of ``PostData`` objects to a CSV file."""
@@ -48,6 +48,30 @@ def append_post_data_to_csv(filepath: str, post_data: PostData) -> None:
             if not file_exists:
                 writer.writeheader()
             writer.writerow(post_data.__dict__)
+    except Exception as e:
+        raise ValueError(
+            f"An error occurred while appending data to '{filepath}': {e}"
+        )
+
+
+def append_aborted_generation_to_csv(filepath: str, aborted: AbortedGeneration) -> None:
+    """Append a single ``AbortedGeneration`` entry to ``filepath``.
+
+    The CSV header is written if the file does not already exist.
+    """
+    if is_dataclass(AbortedGeneration):
+        fieldnames = [f.name for f in fields(AbortedGeneration)]
+    else:
+        raise TypeError("AbortedGeneration is not a dataclass or does not have fields defined.")
+
+    file_exists = os.path.isfile(filepath)
+
+    try:
+        with open(filepath, "a", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(aborted.__dict__)
     except Exception as e:
         raise ValueError(
             f"An error occurred while appending data to '{filepath}': {e}"

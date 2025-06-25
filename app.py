@@ -20,6 +20,7 @@ FOREX_RATES_FILE = os.path.join(CURRENT_DIR, "presets/forex_rates.json")
 INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test2.csv")
 OUTPUT_POST_DATA_FILE = os.path.join(CURRENT_DIR, "output.csv")
 OUTPUT_IMAGE_FOLDER = os.path.join(CURRENT_DIR, "output_images")
+ABORTED_GENERATIONS_FILE = os.path.join(CURRENT_DIR, "aborted.csv")
 
 def run_pipeline():
     """Main function to run the post generation pipeline."""
@@ -69,6 +70,7 @@ def run_pipeline():
         ai_client=ai_client,
         output_filepath=OUTPUT_POST_DATA_FILE,
         image_output_folder=OUTPUT_IMAGE_FOLDER,
+        aborted_filepath=ABORTED_GENERATIONS_FILE,
     )
 
     # 4. Inform user where results are written
