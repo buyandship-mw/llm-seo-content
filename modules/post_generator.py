@@ -19,6 +19,7 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
         "title": "📸 Fujifilm Instax Mini 12",
         "content":
             """
+產品介紹
 - 得意設計＋超易用
 - 自動曝光，唔使調光
 - 自拍模式＋自拍鏡
@@ -36,6 +37,7 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
         "title": "🎧 Chiikawa 完全無線立體聲耳機",
         "content":
             """
+產品介紹
 - 可愛嘅 Chiikawa 角色設計
 - 耳塞式設計，確保音質清晰
 - 支援藍牙連接，8米內無線播放音樂
@@ -44,6 +46,24 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
 用家評價
 👍 可愛嘅設計，音質清晰，連接穩定
 ⚠️ 連續使用時間較短，需要經常充電
+            """
+    }, {
+        "item_url": "https://www.standoil.kr/product/detail.html?product_no=719&cate_no=543&display_group=1",
+        "item_name": "모어 바게트백 / 마론",
+        "warehouse": "warehouse-kas-seoul",
+        "title": "🎧 👜 More Baguette Bag / Maroon",
+        "content":
+            """
+產品介紹
+- 採用柔軟人造皮革，觸感舒適
+- 寬敞內部空間，方便收納日常物品
+- 配備柔滑拉鍊，方便開關
+- 配有手柄固定器，方便攜帶
+- 內部設有2個開放式口袋和1個拉鍊口袋，方便分類收納
+
+用家評價
+👍 實用又時尚，適合日常使用
+⚠️ 需注意保養，避免長時間曝曬以免變色
             """
     }]
 }
