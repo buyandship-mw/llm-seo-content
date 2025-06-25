@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Tuple, Union
 
 from dotenv import load_dotenv
 from modules.llm_client import LLMClient
@@ -60,7 +60,7 @@ class AzureOpenAIClient(LLMClient):
         prompt: str,
         model: str,
         temperature: float | None = 1.0,
-    ) -> Optional[str]:
+    ) -> Tuple[Any, Optional[str]]:
         raise NotImplementedError
 
     def get_completion(
@@ -132,44 +132,26 @@ class OpenAIClient(LLMClient):
         return True
 
     def _extract_text_from_response(self, response: Any) -> Optional[str]:
-        """
-        Helper method to safely extract text content from the response.
-        It checks for various known structures.
-        """
-        if not response or not hasattr(response, 'output') or not response.output:
-            print(f"--- OpenAIClient Warning: Response object is empty or 'output' attribute is missing/empty. Response: {response} ---")
+        """Extract text from OpenAI responses (including web search function outputs)."""
+        if not response:
+            print("--- OpenAIClient Warning: Empty response object ---")
             return None
 
-        if not isinstance(response.output, list):
-            print(f"--- OpenAIClient Warning: response.output is not a list. Got: {type(response.output)} ---")
-            return None
-
-        # Iterate through items in response.output
-        # This handles cases where the desired content might not be in the first item,
-        # or if the first item doesn't conform to the primary expected structure.
-        for item in response.output:
-            if not item or not hasattr(item, 'content') or not item.content:
-                continue # Move to the next item if this one is not structured as expected
-
-            if not isinstance(item.content, list) or not item.content:
-                continue # Move to the next item if item.content is not a non-empty list
-
-            # We are typically interested in the first content block of an output item
-            content_block = item.content[0]
-            if not content_block:
-                continue
-
-            # Check for the 'text' attribute
-            if hasattr(content_block, 'text') and isinstance(content_block.text, str):
-                # Found text, return it.
-                return content_block.text.strip()
-            # else:
-                # This branch means content_block exists but doesn't have a 'text' string attribute.
-                # Could add more specific logging here if needed.
-                # print(f"--- OpenAIClient Debug: Content block found but no 'text' attribute or not a string: {content_block}")
-
-        # If no text was found after checking all items
-        print(f"--- OpenAIClient Warning: Could not extract text content from any item in 'response.output' using known structures. Response: {response} ---")
+        # If 'output' attribute is present and is a list
+        if hasattr(response, "output") and response.output:
+            for item in response.output:
+                # Look for ResponseOutputMessage (has .content)
+                content = getattr(item, "content", None)
+                if content and isinstance(content, list):
+                    # Each content item could be a ResponseOutputText
+                    for c in content:
+                        text = getattr(c, "text", None)
+                        if text and isinstance(text, str):
+                            return text.strip()
+                # If just a plain text output (rare in this API, but just in case)
+                if isinstance(item, str):
+                    return item.strip()
+        print("--- OpenAIClient Warning: Could not extract text content from response ---")
         return None
 
     def get_completion(
@@ -249,27 +231,41 @@ class OpenAIClient(LLMClient):
         prompt: str,
         model: str,
         temperature: float | None = 1.0,
-    ) -> Optional[str]:
+    ) -> Tuple[Any, Optional[str]]:
         messages = [{"role": "user", "content": prompt}]
-        return self.get_completion(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            tools=[{"type": "web_search_preview"}]
-        )
+        create_params: Dict[str, Any] = {
+            "model": model,
+            "input": messages,
+            "tools": [{"type": "web_search_preview"}],
+            "tool_choice": {"type": "web_search_preview"},
+        }
+        if temperature is not None:
+            create_params["temperature"] = temperature
 
+        response = self.client.responses.create(**create_params)
+        text = self._extract_text_from_response(response)
+        return response, text
+
+    def web_search_occurred(self, response: Any) -> bool:
+        if hasattr(response, "output") and response.output:
+            for item in response.output:
+                if getattr(item, "type", None) == "web_search_call":
+                    return True
+        return False
 
 if __name__ == "__main__":
     try:
-        # azure_client = AzureOpenAIClient()
-        # response = azure_client.get_completion("What is the capital of France?")
-        # print(f"Azure Response: {response}")
-
         std_client = OpenAIClient()
-        std_response = std_client.get_completion_with_search(
+        # Use the refactored method that returns raw response and extracted text
+        response, result = std_client.get_completion_with_search(
             model="gpt-4.1-mini",
-            messages="When is the F1 film being released?"
+            prompt="When is Maroon 5 coming to Pittsburgh in 2025? They just announced a new tour."
         )
-        print(f"OpenAI Response: {std_response}")
+
+        if std_client.web_search_occurred(response):
+            print(f"OpenAI Response: {result}")
+        else:
+            print("Web search was not invoked. Response rejected.")
+
     except Exception as e:
         print(f"Error during client operations: {e}")
