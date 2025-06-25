@@ -55,11 +55,11 @@ def test_invoke_comprehensive_llm_respects_flag():
     search_client = DummySearchClient()
     no_search_client = DummyNoSearchClient()
 
-    res1 = _invoke_comprehensive_llm("hi", search_client, "model", ["a"])
+    res1, raw1 = _invoke_comprehensive_llm("hi", search_client, "model", ["a"])
     assert search_client.called_search is True
     assert res1 == {"a": 1}
 
-    res2 = _invoke_comprehensive_llm("hi", no_search_client, "model", ["a"])
+    res2, raw2 = _invoke_comprehensive_llm("hi", no_search_client, "model", ["a"])
     assert no_search_client.called is True
     assert res2 == {"a": 1}
 
@@ -88,6 +88,6 @@ class DummyFailSearchClient(LLMClient):
 
 def test_invoke_comprehensive_llm_aborts_on_search_failure():
     client = DummyFailSearchClient()
-    res = _invoke_comprehensive_llm("hi", client, "model", ["a"])
+    res, raw = _invoke_comprehensive_llm("hi", client, "model", ["a"])
     assert client.called is True
     assert res is None

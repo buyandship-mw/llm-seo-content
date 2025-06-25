@@ -20,3 +20,7 @@ class LLMClient:
     ) -> Tuple[Any, Optional[str]]:
         """Return a tuple of raw API response and extracted text."""
         raise NotImplementedError
+
+    def web_search_occurred(self, response: Any) -> bool:
+        """Whether the given response indicates a web search was performed."""
+        return False

@@ -197,8 +197,9 @@ def _invoke_comprehensive_llm(
     ai_client: LLMClient,
     model: str,
     expected_keys: List[str]
-) -> Optional[Dict[str, Any]]:
-    _, raw_response_str = ai_client.get_response(
+
+) -> Tuple[Optional[Dict[str, Any]], Any]:
+    raw_response, raw_response_str = ai_client.get_response(
         prompt=user_prompt,
         model=model,
         use_search=True,
@@ -212,10 +213,10 @@ def _invoke_comprehensive_llm(
             missing_keys = [key for key in expected_keys if key not in parsed_json]
             if missing_keys:
                 print(f"Warning: LLM response missing required keys: {missing_keys}. Raw: {raw_response_str}")
-            return parsed_json
+            return parsed_json, raw_response
         else:
-            print(f"Warning: LLM response was not a valid JSON dictionary. Raw: {raw_response_str}")
-    return None
+            raise ValueError(f"LLM response was not a valid JSON dictionary. Raw: {raw_response_str}")
+    return None, raw_response
 
 def _parse_llm_post_fields(
     llm_output: Dict[str, Any],
@@ -380,7 +381,12 @@ def generate_post(
         available_interests,
     )
 
-    llm_response_dict = _invoke_comprehensive_llm(user_prompt, ai_client, model, expected_keys)
+    llm_response_dict, raw_llm_response = _invoke_comprehensive_llm(
+        user_prompt, ai_client, model, expected_keys
+    )
+
+    if not ai_client.web_search_occurred(raw_llm_response):
+        raise ValueError("LLM response indicates no web search occurred")
 
     if llm_response_dict:
         parsed_fields = _parse_llm_post_fields(
