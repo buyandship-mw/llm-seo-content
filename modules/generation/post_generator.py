@@ -197,9 +197,11 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append(
         f"The style, tone, and structure for 'title' and 'content' should be closely guided by the master examples "
         f"provided below for the {item_data.region} region. {language_guidance} "
-        "The 'content' should generally have two main sections based on your search: "
-        "1. a product introduction (highlighting key features/benefits), and "
-        "2. a brief summary of user reviews or public sentiment."
+        "Your 'content' must contain two sections in this order:\n"
+        "1. 'Product information' — bullet points in a formal tone describing key details.\n"
+        "   - Include the expiration date if the item is food.\n"
+        "   - Include available sizes if the item is clothing.\n"
+        "2. 'User review summary' — bullet points in a casual tone summarizing user feedback."
     )
     prompt_lines.append(
         f"Here are some master examples for your reference. Learn from their structure, "

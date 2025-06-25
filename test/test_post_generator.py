@@ -42,3 +42,16 @@ def test_append_call_to_action():
         rates,
     )
     assert result["content"].endswith(CTA_BY_WAREHOUSE["DEFAULT"])
+
+
+def test_prompt_includes_new_guidelines():
+    parsed, item, cats, ints, whs, rates = _sample_data()
+    # ensure region matches available master examples
+    item.region = "HK"
+
+    prompt, _ = _build_comprehensive_llm_prompt(item, cats, ints)
+
+    assert "Product information" in prompt
+    assert "User review summary" in prompt
+    assert "expiration date" in prompt
+    assert "available sizes" in prompt
