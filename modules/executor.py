@@ -2,6 +2,7 @@ from typing import Dict, List
 
 from dataclasses import asdict
 from modules.models import PostData, Category, Warehouse, Interest
+from modules.llm_client import LLMClient
 from modules.openai_client import OpenAIClient
 from modules.post_generator import generate_post
 from modules.scraper import extract_product_data
@@ -15,7 +16,7 @@ def process_batch_input_data(
     available_interests: List[Interest],
     warehouses: List[Warehouse],
     rates: Dict,
-    ai_client: OpenAIClient,
+    ai_client: LLMClient,
     output_filepath: str | None = None,
     image_output_folder: str | None = None,
 ) -> List[PostData]:
