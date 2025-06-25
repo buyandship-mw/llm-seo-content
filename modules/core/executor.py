@@ -49,7 +49,7 @@ def process_batch_input_data(
             missing_scrape_attrs = [
                 a
                 for a in ("image_url", "source_price", "source_currency")
-                if getattr(enriched_input, a) in (None, "")
+                if getattr(enriched_input, a) in (None, "", 0, 0.0)
             ]
             if missing_scrape_attrs:
                 print(

@@ -167,6 +167,7 @@ def _build_comprehensive_llm_prompt(
         " Store this into `item_name`."
     )
 
+
     # category (MCQ)
     prompt_lines.append(
         f"- From the following list of valid post categories: {category_labels}, select the single most appropriate category for the post. Place your choice in the 'category' field."
@@ -222,9 +223,6 @@ def _invoke_comprehensive_llm(
     expected_keys: List[str]
 
 ) -> Tuple[Optional[Dict[str, Any]], Any]:
-    if not ai_client.supports_web_search:
-        raise ValueError("LLM client does not support web search, cannot proceed.")
-    
     raw_response, raw_response_str = ai_client.get_response(
         prompt=user_prompt,
         model=model,
@@ -314,30 +312,29 @@ def _assemble_post_data(
     target_currency = target_warehouse.currency.upper()
 
     # Perform price conversion to target_currency
-    source_price = final_data.get("source_price", 0.0)
-    source_currency = final_data.get("source_currency", None)
+    source_price = final_data.get("source_price")
+    source_currency = final_data.get("source_currency")
 
-    if source_price is None:
-        print("Warning: Source price is None. Using 0.0 as price in target currency.")
-        final_item_price_converted = 0.0
-    elif source_currency is None or source_currency == "N/A":
-        print("Warning: Source currency is None or 'N/A'. Using 0.0 as price in target currency.")
-        final_item_price_converted = 0.0
+    if source_price in (None, 0, 0.0):
+        raise ValueError("Source price is missing or zero, cannot generate post")
+    if source_currency is None or source_currency in ("", "N/A"):
+        raise ValueError("Source currency is missing, cannot generate post")
+
+    if source_currency == target_currency:
+        final_item_price_converted = source_price
     else:
-        if source_currency == target_currency:
-            final_item_price_converted = source_price
+        converted = convert_price(
+            source_price,
+            source_currency,
+            target_currency,
+            currency_conversion_rates,
+        )
+        if converted is not None:
+            final_item_price_converted = converted
         else:
-            converted = convert_price(
-                source_price,
-                source_currency,
-                target_currency,
-                currency_conversion_rates,
+            raise ValueError(
+                f"Conversion failed from {source_currency} to {target_currency}"
             )
-            if converted is not None:
-                final_item_price_converted = converted
-            else:
-                print(f"Warning: Conversion failed from {source_currency} to {target_currency}. Using 0.0.")
-                final_item_price_converted = 0.0
 
     final_data["item_unit_price"] = final_item_price_converted
 
