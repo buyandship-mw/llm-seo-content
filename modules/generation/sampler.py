@@ -1,6 +1,6 @@
 from typing import List
 
-from modules.models import PostData
+from modules.core.models import PostData
 
 class Sampler:
     """

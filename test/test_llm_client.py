@@ -1,8 +1,8 @@
 from typing import Any, Optional
 
-from modules.llm_client import LLMClient
-from modules.openai_client import OpenAIClient, AzureOpenAIClient
-from modules.post_generator import _invoke_comprehensive_llm
+from modules.clients.llm_client import LLMClient
+from modules.clients.openai_client import OpenAIClient, AzureOpenAIClient
+from modules.generation.post_generator import _invoke_comprehensive_llm
 
 class DummySearchClient(LLMClient):
     def __init__(self):

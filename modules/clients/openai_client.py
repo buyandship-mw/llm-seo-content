@@ -2,7 +2,7 @@ import os
 from typing import List, Dict, Any, Optional, Tuple, Union
 
 from dotenv import load_dotenv
-from modules.llm_client import LLMClient
+from .llm_client import LLMClient
 
 load_dotenv()
 

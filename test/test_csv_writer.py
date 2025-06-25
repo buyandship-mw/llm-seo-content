@@ -1,6 +1,6 @@
 import csv
-from modules.models import PostData
-from modules.csv_writer import append_post_data_to_csv
+from modules.core.models import PostData
+from modules.io.csv_writer import append_post_data_to_csv
 
 def create_sample_post(idx: int) -> PostData:
     return PostData(

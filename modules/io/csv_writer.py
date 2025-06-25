@@ -4,7 +4,7 @@ from typing import List
 from dataclasses import fields, is_dataclass
 import os
 
-from modules.models import PostData
+from modules.core.models import PostData
 
 def write_post_data_to_csv(filepath: str, post_data_list: List[PostData]) -> None:
     """Writes a list of ``PostData`` objects to a CSV file."""

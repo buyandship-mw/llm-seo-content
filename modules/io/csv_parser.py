@@ -2,8 +2,8 @@ from typing import Optional, List, Union, TextIO
 import csv
 import json
 
-from modules.models import PostData, Category, Interest, Warehouse
-from modules.post_data_builder import PostDataBuilder
+from modules.core.models import PostData, Category, Interest, Warehouse
+from modules.generation.post_data_builder import PostDataBuilder
 from typing import Dict
 
 def load_categories_from_json(filepath: str) -> List[Category]:

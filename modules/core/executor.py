@@ -1,13 +1,13 @@
 from typing import Dict, List
 
 from dataclasses import asdict
-from modules.models import PostData, Category, Warehouse, Interest
-from modules.llm_client import LLMClient
-from modules.openai_client import OpenAIClient
-from modules.post_generator import generate_post
-from modules.scraper import extract_product_data
-from modules.post_data_builder import PostDataBuilder
-from modules.csv_writer import append_post_data_to_csv
+from modules.core.models import PostData, Category, Warehouse, Interest
+from modules.clients.llm_client import LLMClient
+from modules.clients.openai_client import OpenAIClient
+from modules.generation.post_generator import generate_post
+from modules.scraper.scraper import extract_product_data
+from modules.generation.post_data_builder import PostDataBuilder
+from modules.io.csv_writer import append_post_data_to_csv
 from utils.image_processing import save_image_from_url
 
 def process_batch_input_data(
