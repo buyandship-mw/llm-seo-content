@@ -3,7 +3,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from modules.generation.post_generator import _assemble_post_data, CTA_BY_WAREHOUSE
+from modules.generation.post_generator import (
+    _assemble_post_data,
+    CTA_BY_WAREHOUSE,
+    _build_comprehensive_llm_prompt,
+)
 from modules.core.models import PostData, Category, Interest, Warehouse
 
 
@@ -55,3 +59,4 @@ def test_prompt_includes_new_guidelines():
     assert "User review summary" in prompt
     assert "expiration date" in prompt
     assert "available sizes" in prompt
+    assert "Translate both the cleaned 'item_name' and the generated 'title' into English." in prompt

@@ -68,6 +68,11 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
     }]
 }
 
+# Preferred language for item_name and title by region
+PREFERRED_LANG_BY_REGION: Dict[str, str] = {
+    "HK": "English",
+}
+
 # Default call-to-action text. Map keys are warehouse codes for future use.
 CTA_BY_WAREHOUSE: Dict[str, str] = {
     "DEFAULT": "Shop with Buyandship today!",
@@ -164,6 +169,12 @@ def _build_comprehensive_llm_prompt(
         "Return only the cleaned name in the 'item_name' field."
     )
 
+    preferred_lang = PREFERRED_LANG_BY_REGION.get(item_data.region.upper())
+    if preferred_lang:
+        prompt_lines.append(
+            f"- Translate both the cleaned 'item_name' and the generated 'title' into {preferred_lang}."
+        )
+
 
     # category (MCQ)
     prompt_lines.append(
@@ -188,6 +199,8 @@ def _build_comprehensive_llm_prompt(
             f"Both title and content must be in the same language as these master examples for '{item_data.region}', "
             "and content should similarly match their language style."
         )
+        if preferred_lang:
+            language_guidance += f" The item_name and title should be written in {preferred_lang}."
 
     prompt_lines.append(
         "\n--- CONTENT GENERATION (TITLE & CONTENT) ---"
@@ -221,9 +234,6 @@ def _invoke_comprehensive_llm(
     expected_keys: List[str]
 
 ) -> Tuple[Optional[Dict[str, Any]], Any]:
-    if not ai_client.supports_web_search:
-        raise ValueError("LLM client does not support web search, cannot proceed.")
-    
     raw_response, raw_response_str = ai_client.get_response(
         prompt=user_prompt,
         model=model,
