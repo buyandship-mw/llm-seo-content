@@ -3,21 +3,20 @@ from typing import Any, Optional, Tuple
 class LLMClient:
     """Abstract base class for LLM clients."""
 
-    def get_completion(self, *args: Any, **kwargs: Any) -> Optional[str]:
-        """Return a completion from the model."""
-        raise NotImplementedError
-
     @property
     def supports_web_search(self) -> bool:
         """Whether this client can utilize web search."""
         return False
 
-    def get_completion_with_search(
+    def get_response(
         self,
-        *,
         prompt: str,
         model: str,
-        temperature: float | None = 1.0,
+        temperature: float = 1.0,
+        *,
+        max_tokens: Optional[int] = None,
+        system_message: Optional[str] = None,
+        use_search: bool = False,
     ) -> Tuple[Any, Optional[str]]:
-        """Return a tuple of raw response and extracted text from a web-search-enabled completion."""
+        """Return a tuple of raw API response and extracted text."""
         raise NotImplementedError

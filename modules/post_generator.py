@@ -63,10 +63,7 @@ def _predict_warehouse_from_currency(
         f"region where the currency '{source_currency}' is primarily used? "
         "Respond with JSON {\"warehouse\": \"<code>\"}."
     )
-    try:
-        raw = ai_client.get_completion(model=model, messages=[{"role": "user", "content": prompt}])
-    except TypeError:
-        raw = ai_client.get_completion(prompt)
+    _, raw = ai_client.get_response(prompt=prompt, model=model)
 
     if not raw:
         return None
@@ -190,17 +187,11 @@ def _invoke_comprehensive_llm(
     model: str,
     expected_keys: List[str]
 ) -> Optional[Dict[str, Any]]:
-    messages = [{"role": "user", "content": user_prompt}]
-    if ai_client.supports_web_search:
-        raw_response_str = ai_client.get_completion_with_search(
-            prompt=user_prompt,
-            model=model,
-        )
-    else:
-        try:
-            raw_response_str = ai_client.get_completion(model=model, messages=messages)
-        except TypeError:
-            raw_response_str = ai_client.get_completion(user_prompt)
+    _, raw_response_str = ai_client.get_response(
+        prompt=user_prompt,
+        model=model,
+        use_search=True,
+    )
 
     if raw_response_str:
         parsed_json = extract_and_parse_json(raw_response_str)
