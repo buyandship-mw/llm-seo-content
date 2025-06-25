@@ -49,11 +49,41 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
 }
 
 # --- Internal Helper Functions ---
+
+def _predict_warehouse_from_currency(
+    source_currency: str,
+    valid_warehouses: List[str],
+    ai_client: LLMClient,
+    model: str,
+) -> Optional[str]:
+    """Predict the best warehouse using only the currency."""
+    prompt = (
+        "Given the warehouse codes "
+        f"{valid_warehouses}. Which warehouse is geographically closest to the "
+        f"region where the currency '{source_currency}' is primarily used? "
+        "Respond with JSON {\"warehouse\": \"<code>\"}."
+    )
+    try:
+        raw = ai_client.get_completion(model=model, messages=[{"role": "user", "content": prompt}])
+    except TypeError:
+        raw = ai_client.get_completion(prompt)
+
+    if not raw:
+        return None
+    try:
+        data = extract_and_parse_json(raw)
+    except Exception:
+        return None
+    if isinstance(data, dict):
+        wh = data.get("warehouse")
+        if isinstance(wh, str) and wh in valid_warehouses:
+            return wh
+    return None
+
 def _build_comprehensive_llm_prompt(
     item_data: PostData,
     available_bns_categories: List[Category],
     available_interests: List[Interest],
-    valid_warehouses_for_mcq: List[str]  # Just the warehouse codes for the prompt
 ) -> Tuple[str, List[str]]:
     prompt_lines = []
     category_labels = [c.label for c in available_bns_categories]
@@ -63,7 +93,7 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append(
         "\n--- STEP-BY-STEP WORKFLOW ---"
         "\n1. Cleanup the item name provided by the scraper."
-        "\n2. Select the most suitable category, warehouse, and interest from the lists above (never create new values)."
+        "\n2. Select the most suitable category and interest from the lists above (never create new values)."
         "\n3. Generate region-specific 'title' and 'content' matching the exact structure and tone of the provided examples."
         "\n4. Output a single valid JSON object using the structure below with no commentary or markdown."
     )
@@ -73,11 +103,10 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append(
         "Your entire response MUST be exactly one JSON object with these keys."
     )
-    output_fields = ["item_name", "category", "interest", "warehouse", "title", "content"]
+    output_fields = ["item_name", "category", "interest", "title", "content"]
     field_desc = {
         "item_name": '  "item_name": "string"',
         "category": '  "category": "string_from_list"',
-        "warehouse": '  "warehouse": "string_from_list_or_client_value"',
         "interest": '  "interest": "string_from_list"',
         "source_currency": '  "source_currency": "3_letter_code_or_\"N/A\""',
         "source_price": '  "source_price": "float"',
@@ -107,13 +136,6 @@ def _build_comprehensive_llm_prompt(
         "Return only the cleaned name in the 'item_name' field."
     )
 
-    # warehouse (MCQ)
-    prompt_lines.append(
-        f"The scraper found the item currency to be '{item_data.source_currency}'."
-    )
-    prompt_lines.append(
-        f"- From this list of valid warehouses: {valid_warehouses_for_mcq}, select the warehouse that is geographically closest to the region where this currency is primarily used. Do not select the warehouse based on the target content region or style."
-    )
 
     # category (MCQ)
     prompt_lines.append(
@@ -193,13 +215,35 @@ def _invoke_comprehensive_llm(
             print(f"Warning: LLM response was not a valid JSON dictionary. Raw: {raw_response_str}")
     return None
 
-def _finalize_data_from_llm_response(
+def _parse_llm_post_fields(
     llm_output: Dict[str, Any],
+    available_bns_categories: List[Category],
+    available_interests: List[Interest],
+) -> Dict[str, Any]:
+    """Convert category/interest labels from the LLM into stored values."""
+    parsed = {
+        "item_name": llm_output.get("item_name"),
+        "title": llm_output.get("title"),
+        "content": llm_output.get("content"),
+    }
+
+    label_to_value = {c.label: c.value for c in available_bns_categories}
+    parsed["category"] = label_to_value.get(llm_output.get("category"))
+
+    label_to_interest_value = {i.label: i.value for i in available_interests}
+    parsed["interest"] = label_to_interest_value.get(llm_output.get("interest"))
+
+    return parsed
+
+
+def _assemble_post_data(
+    parsed_llm_fields: Dict[str, Any],
+    predicted_warehouse: str,
     original_item_data: PostData,
     available_bns_categories: List[Category],
     available_interests: List[Interest],
     valid_warehouses: List[Warehouse],
-    currency_conversion_rates: Dict[str, Dict[str, float]]
+    currency_conversion_rates: Dict[str, Dict[str, float]],
 ) -> Dict[str, Any]:
     final_data = {}
 
@@ -226,16 +270,15 @@ def _finalize_data_from_llm_response(
     final_data["item_weight"] = original_item_data.item_weight
 
     # --- Apply LLM generated / transformed output ---
-    final_data["item_name"] = llm_output.get("item_name")
-    final_data["title"] = llm_output.get("title")
-    final_data["content"] = llm_output.get("content")
+    final_data["item_name"] = parsed_llm_fields.get("item_name")
+    final_data["title"] = parsed_llm_fields.get("title")
+    final_data["content"] = parsed_llm_fields.get("content")
 
-    # Validate warehouse selection and get currency
-    warehouse = llm_output.get("warehouse")
-    target_warehouse = next((wh for wh in valid_warehouses if wh.value == warehouse), None)
+    # Validate warehouse prediction and get currency
+    target_warehouse = next((wh for wh in valid_warehouses if wh.value == predicted_warehouse), None)
 
     if not target_warehouse:
-        print("Warning: Client/LLM warehouse invalid or missing. Defaulting warehouse from valid list.")
+        print("Warning: Predicted warehouse invalid or missing. Defaulting warehouse from valid list.")
         target_warehouse = valid_warehouses[0]
 
     final_data["warehouse"] = target_warehouse.value
@@ -275,8 +318,8 @@ def _finalize_data_from_llm_response(
     values = set(label_to_value.values())
     if original_item_data.category and original_item_data.category in values:
         final_data["category"] = original_item_data.category
-    elif "category" in llm_output and llm_output["category"] in label_to_value:
-        final_data["category"] = label_to_value[llm_output["category"]]
+    elif parsed_llm_fields.get("category") in values:
+        final_data["category"] = parsed_llm_fields["category"]
     elif values:
         print(
             "Warning: Client/LLM category invalid or missing. Defaulting from valid list."
@@ -290,8 +333,8 @@ def _finalize_data_from_llm_response(
     interest_values = set(label_to_interest_value.values())
     if original_item_data.interest and original_item_data.interest in interest_values:
         final_data["interest"] = original_item_data.interest
-    elif "interest" in llm_output and llm_output["interest"] in label_to_interest_value:
-        final_data["interest"] = label_to_interest_value[llm_output["interest"]]
+    elif parsed_llm_fields.get("interest") in interest_values:
+        final_data["interest"] = parsed_llm_fields["interest"]
     elif interest_values:
         print(
             "Warning: Client/LLM interest invalid or missing. Defaulting from valid list."
@@ -315,23 +358,38 @@ def generate_post(
 
     valid_warehouses_for_prompt = [wh.value for wh in valid_warehouses]
 
+    predicted_warehouse = item_data.warehouse or _predict_warehouse_from_currency(
+        item_data.source_currency,
+        valid_warehouses_for_prompt,
+        ai_client,
+        model,
+    )
+    if not predicted_warehouse:
+        predicted_warehouse = valid_warehouses_for_prompt[0]
+
     user_prompt, expected_keys = _build_comprehensive_llm_prompt(
         item_data,
         available_bns_categories,
         available_interests,
-        valid_warehouses_for_prompt
     )
 
     llm_response_dict = _invoke_comprehensive_llm(user_prompt, ai_client, model, expected_keys)
 
     if llm_response_dict:
-        finalized_data_dict = _finalize_data_from_llm_response(
+        parsed_fields = _parse_llm_post_fields(
             llm_response_dict,
+            available_bns_categories,
+            available_interests,
+        )
+
+        finalized_data_dict = _assemble_post_data(
+            parsed_fields,
+            predicted_warehouse,
             item_data,
             available_bns_categories,
             available_interests,
             valid_warehouses,
-            currency_conversion_rates
+            currency_conversion_rates,
         )
         
         from dataclasses import asdict
