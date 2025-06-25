@@ -48,6 +48,17 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
     }]
 }
 
+# Default call-to-action text. Map keys are warehouse codes for future use.
+CTA_BY_WAREHOUSE: Dict[str, str] = {
+    "DEFAULT": "Shop with Buyandship today!",
+}
+
+def _append_call_to_action(content: str, warehouse_code: str) -> str:
+    """Append a CTA to ``content`` based on ``warehouse_code``."""
+    cta = CTA_BY_WAREHOUSE.get(warehouse_code, CTA_BY_WAREHOUSE["DEFAULT"])
+    content = content.rstrip() if content else ""
+    return f"{content}\n\n{cta}" if cta else content
+
 # --- Internal Helper Functions ---
 
 def _predict_warehouse_from_currency(
@@ -340,6 +351,11 @@ def _assemble_post_data(
             "Warning: Client/LLM interest invalid or missing. Defaulting from valid list."
         )
         final_data["interest"] = next(iter(interest_values))
+
+    # Append CTA to the content based on the final warehouse
+    final_data["content"] = _append_call_to_action(
+        final_data.get("content", ""), final_data["warehouse"]
+    )
 
     return final_data
 
