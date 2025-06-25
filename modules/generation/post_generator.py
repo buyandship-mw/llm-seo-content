@@ -16,7 +16,7 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
         "item_url": "https://www.target.com/p/fujifilm-instax-mini-12-camera/-/A-88743864",
         "item_name": "Fujifilm Instax Mini 12 Camera",
         "warehouse": "warehouse-4px-uspdx",
-        "title": "📸 Fujifilm Instax Mini 12",
+        "title": "📸 Fujifilm Instax Mini 12 Camera",
         "content":
             """
 產品介紹
@@ -32,9 +32,9 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
             """
     }, {
         "item_url": "https://www.gourmandise.jp/view/item/000000009318",
-        "item_name": "Chiikawa 完全無線立體聲耳機",
+        "item_name": "Chiikawa Wireless Stereo Headphones",
         "warehouse": "warehouse-qs-osaka",
-        "title": "🎧 Chiikawa 完全無線立體聲耳機",
+        "title": "🎧 Chiikawa Wireless Stereo Headphones",
         "content":
             """
 產品介紹
@@ -49,7 +49,7 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
             """
     }, {
         "item_url": "https://www.standoil.kr/product/detail.html?product_no=719&cate_no=543&display_group=1",
-        "item_name": "모어 바게트백 / 마론",
+        "item_name": "More Baguette Bag / Maroon",
         "warehouse": "warehouse-kas-seoul",
         "title": "🎧 👜 More Baguette Bag / Maroon",
         "content":
@@ -66,6 +66,11 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
 ⚠️ 需注意保養，避免長時間曝曬以免變色
             """
     }]
+}
+
+# Preferred language for item_name and title by region
+PREFERRED_LANG_BY_REGION: Dict[str, str] = {
+    "HK": "English",
 }
 
 # Default call-to-action text. Map keys are warehouse codes for future use.
@@ -155,15 +160,12 @@ def _build_comprehensive_llm_prompt(
 
     # Field-specific instructions
     # item_name
+    prompt_lines.append(f"The scraper found the name '{item_data.item_name}'.")
     prompt_lines.append(
-        f"The scraper found the name '{item_data.item_name}'."
+        "- Clean the scraped name by removing any extra adjectives, model numbers, or marketing copy."
+        " Then translate the scraped name fully into English."
+        " Store this into `item_name`."
     )
-    prompt_lines.append(
-        "- Clean this up by returning only the brand and main product type. "
-        "Remove redundant words, repeated descriptors, and all marketing or occasion-related text. "
-        "Return only the cleaned name in the 'item_name' field."
-    )
-
 
     # category (MCQ)
     prompt_lines.append(
@@ -185,24 +187,23 @@ def _build_comprehensive_llm_prompt(
     else:
         master_examples_json_str = json.dumps(master_examples_list_for_region, ensure_ascii=False, indent=2)
         language_guidance = (
-            f"Both title and content must be in the same language as these master examples for '{item_data.region}', "
-            "and content should similarly match their language style."
+            f"The title and content must both be in the same language as the master examples for '{item_data.region}' "
+            "and should similarly match their language style."
         )
 
     prompt_lines.append(
-        "\n--- CONTENT GENERATION (TITLE & CONTENT) ---"
-        "\nBased on all information (client-provided and your findings from your search), "
-        "generate 'title' (string) and 'content' (string, plain text, NO MARKDOWN formatting)."
+        "\n--- CONTENT GENERATION (TITLE & CONTENT) ---\n"
+        "Based on all information (client-provided and your findings from your search), generate:\n"
+        "  • `title` (string): prepend an emoji, then reuse exactly the cleaned `item_name` (no new terms).\n"
+        "  • `content` (string, plain text, NO MARKDOWN):\n"
+        "    1. Product information — bullet points in a formal tone describing key details.\n"
+        "       - Include the expiration date if the item is food.\n"
+        "       - Include available sizes if the item is clothing.\n"
+        "    2. User review summary — bullet points in a casual tone summarizing user feedback.\n\n"
+        f"The style, tone, and structure must closely follow the master examples for {item_data.region}, as described above. "
+        f"{language_guidance}"
     )
-    prompt_lines.append(
-        f"The style, tone, and structure for 'title' and 'content' should be closely guided by the master examples "
-        f"provided below for the {item_data.region} region. {language_guidance} "
-        "Your 'content' must contain two sections in this order:\n"
-        "1. 'Product information' — bullet points in a formal tone describing key details.\n"
-        "   - Include the expiration date if the item is food.\n"
-        "   - Include available sizes if the item is clothing.\n"
-        "2. 'User review summary' — bullet points in a casual tone summarizing user feedback."
-    )
+
     prompt_lines.append(
         f"Here are some master examples for your reference. Learn from their structure, "
         f"item details they choose to highlight, and how they phrase the title and content sections:\n"
