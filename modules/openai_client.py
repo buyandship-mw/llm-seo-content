@@ -3,6 +3,7 @@ import json
 from typing import List, Dict, Any, Optional, Union
 
 from dotenv import load_dotenv
+from modules.llm_client import LLMClient
 
 load_dotenv()
 
@@ -13,7 +14,7 @@ except ImportError:
     OPENAI_LIB_AVAILABLE = False
     print("Warning: 'openai' or 'pydantic' library not found. OpenAIClient functionality will be limited or unavailable.")
 
-class AzureOpenAIClient:
+class AzureOpenAIClient(LLMClient):
     """Client for Azure OpenAI using environment variables.
 
     Required environment variables:
@@ -49,6 +50,19 @@ class AzureOpenAIClient:
             azure_endpoint=azure_endpoint,
         )
         print(f"Initialized AzureOpenAIClient with deployment: {self.deployment}.")
+
+    @property
+    def supports_web_search(self) -> bool:
+        return False
+
+    def get_completion_with_search(
+        self,
+        *,
+        prompt: str,
+        model: str,
+        temperature: float | None = 1.0,
+    ) -> Optional[str]:
+        raise NotImplementedError
 
     def get_completion(
         self,
@@ -97,7 +111,7 @@ class AzureOpenAIClient:
             print(f"API Error: {e}")
             raise e
 
-class OpenAIClient:
+class OpenAIClient(LLMClient):
     """Client for the standard OpenAI API using environment variables.
 
     Requires the ``OPENAI_API_KEY`` environment variable.
@@ -113,6 +127,10 @@ class OpenAIClient:
 
         self.client = OpenAI(api_key=api_key)
         print("Initialized OpenAIClient (using 'client.responses.create').")
+
+    @property
+    def supports_web_search(self) -> bool:
+        return True
 
     def _extract_text_from_response(self, response: Any) -> Optional[str]:
         """
@@ -228,15 +246,17 @@ class OpenAIClient:
     
     def get_completion_with_search(
         self,
+        *,
+        prompt: str,
         model: str,
-        messages: Union[str, List[Dict[str, Any]]],
-        temperature: Optional[float] = 1.0,
+        temperature: float | None = 1.0,
     ) -> Optional[str]:
+        messages = [{"role": "user", "content": prompt}]
         return self.get_completion(
             model=model,
             messages=messages,
             temperature=temperature,
-            tools=[{ "type": "web_search_preview" }]
+            tools=[{"type": "web_search_preview"}]
         )
 
 def extract_and_parse_json(raw_response_text: Optional[str]) -> Any:
