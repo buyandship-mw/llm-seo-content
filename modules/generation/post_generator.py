@@ -78,6 +78,11 @@ CTA_BY_WAREHOUSE: Dict[str, str] = {
     "DEFAULT": "Shop with Buyandship today!",
 }
 
+# Special JSON key used when the LLM cannot access the product URL
+ABORT_FIELD = "abort_reason"
+# Fixed value indicating a URL access failure
+ABORT_REASON = "URL_ACCESS_FAILED"
+
 def _append_call_to_action(content: str, warehouse_code: str) -> str:
     """Append a CTA to ``content`` based on ``warehouse_code``."""
     cta = CTA_BY_WAREHOUSE.get(warehouse_code, CTA_BY_WAREHOUSE["DEFAULT"])
@@ -121,6 +126,12 @@ def _build_comprehensive_llm_prompt(
     prompt_lines = []
     category_labels = [c.label for c in available_bns_categories]
     interest_labels = [i.label for i in available_interests]
+
+    # Early abort instruction
+    prompt_lines.append(
+        f"If you cannot access '{item_data.item_url}' or any search result, "
+        f"reply only with JSON {{\"{ABORT_FIELD}\": \"{ABORT_REASON}\"}}."
+    )
 
     # --- Step-by-step workflow ---
     prompt_lines.append(
@@ -409,6 +420,10 @@ def generate_post(
     llm_response_dict, raw_llm_response = _invoke_comprehensive_llm(
         user_prompt, ai_client, model, expected_keys
     )
+
+    if llm_response_dict and ABORT_FIELD in llm_response_dict:
+        reason = llm_response_dict.get(ABORT_FIELD, "unknown")
+        raise ValueError(f"LLM aborted generation: {reason}")
 
     if not ai_client.web_search_occurred(raw_llm_response):
         raise ValueError("LLM response indicates no web search occurred")
