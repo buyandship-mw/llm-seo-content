@@ -54,22 +54,16 @@ class AzureOpenAIClient(LLMClient):
     def supports_web_search(self) -> bool:
         return False
 
-    def get_completion_with_search(
+    def get_response(
         self,
-        *,
         prompt: str,
         model: str,
-        temperature: float | None = 1.0,
-    ) -> Tuple[Any, Optional[str]]:
-        raise NotImplementedError
-
-    def get_completion(
-        self,
-        prompt: str,
-        system_message: Optional[str] = "You are a helpful assistant.",
+        temperature: float = 1.0,
+        *,
         max_tokens: Optional[int] = None,
-        temperature: float = 1.0
-    ) -> str:
+        system_message: Optional[str] = "You are a helpful assistant.",
+        use_search: bool = False,
+    ) -> Tuple[Any, Optional[str]]:
         """
         Gets a simple text completion from the Azure OpenAI service.
 
@@ -85,6 +79,9 @@ class AzureOpenAIClient(LLMClient):
         Raises:
             Exception: If an error occurs during the API call or response processing.
         """
+        if use_search:
+            raise NotImplementedError("Search not supported by this client")
+
         messages = []
         if system_message:
             messages.append({"role": "system", "content": system_message})
@@ -104,7 +101,7 @@ class AzureOpenAIClient(LLMClient):
             response_message = chat_completion.choices[0].message
 
             print("--- AzureOpenAIClient: Received completion ---")
-            return response_message.content
+            return chat_completion, response_message.content
         except Exception as e:
             print(f"--- AzureOpenAIClient Error: An API error occurred ---")
             print(f"API Error: {e}")
@@ -154,93 +151,37 @@ class OpenAIClient(LLMClient):
         print("--- OpenAIClient Warning: Could not extract text content from response ---")
         return None
 
-    def get_completion(
+    def get_response(
         self,
-        model: str,
-        messages: Union[str, List[Dict[str, Any]]],
-        temperature: Optional[float] = 1.0,
-        tools: Optional[List[Dict]] = None,
-    ) -> Optional[str]:
-        """
-        Gets a completion from the OpenAI API using `client.responses.create()`.
-        Returns the raw text content of the LLM's final message.
-
-        Args:
-            model: The model name (e.g., "gpt-4.1", "gpt-4o").
-            messages: The prompt, can be a string or list of message objects. Passed as 'input'.
-            temperature: Sampling temperature. Use None to omit.
-            tools: Optional list of tools.
-
-        Returns:
-            The raw text content from the LLM's response, or None if an error occurs or content is empty.
-        """
-        print(f"--- OpenAIClient: Requesting completion from model: {model} via responses.create ---")
-
-        create_params: Dict[str, Any] = {
-            "model": model,
-            "input": messages, # `client.responses.create` uses `input`
-        }
-        if tools:
-            create_params["tools"] = tools
-        if temperature is not None: # Explicitly check for None, so 0.0 is a valid temperature
-            create_params['temperature'] = temperature
-
-        response: Optional[Any] = None
-        try:
-            # Check if client has 'responses' and 'responses.create' before calling
-            if not hasattr(self.client, 'responses') or not hasattr(self.client.responses, 'create'):
-                # This specific AttributeError was handled in the original code,
-                # so we replicate that check before attempting the call.
-                print("--- OpenAIClient Error: The 'responses.create' API "
-                      "is not available in your version of the 'openai' library or client setup. "
-                      "Consider upgrading or using client.chat.completions.create.")
-                return None
-
-            response = self.client.responses.create(**create_params)
-            # It's good practice to log the raw response for debugging if issues occur
-            # print(f"--- OpenAIClient Debug: Raw response object: {response} ---") # Potentially very verbose
-
-            llm_content = self._extract_text_from_response(response)
-
-            if llm_content is not None: # llm_content will be already stripped by the helper
-                print("--- OpenAIClient: Received content from 'responses.create' ---")
-                return llm_content
-            else:
-                # _extract_text_from_response already prints a warning,
-                # but a more generic message here might also be useful.
-                print(f"--- OpenAIClient Error: Failed to extract text content from 'responses.create' output. Full response logged above or in warnings.")
-                return None
-
-        except AttributeError as ae:
-            # This block would catch other AttributeErrors not related to 'responses.create'
-            # if they occurred during the setup or the call itself (less likely for 'create').
-            print(f"--- OpenAIClient Error: An AttributeError occurred: {ae} ---")
-            import traceback
-            traceback.print_exc()
-            return None
-        except Exception as e: # Catch other potential API errors or unexpected issues
-            print(f"--- OpenAIClient Error: An API error or other issue occurred with 'responses.create' ---")
-            print(f"Error: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-    
-    def get_completion_with_search(
-        self,
-        *,
         prompt: str,
         model: str,
-        temperature: float | None = 1.0,
+        temperature: float = 1.0,
+        *,
+        max_tokens: Optional[int] = None,
+        system_message: Optional[str] = None,
+        use_search: bool = False,
     ) -> Tuple[Any, Optional[str]]:
-        messages = [{"role": "user", "content": prompt}]
+        """Return a tuple of raw response and extracted assistant text."""
+
+        messages: List[Dict[str, Any]] = []
+        if system_message:
+            messages.append({"role": "system", "content": system_message})
+        messages.append({"role": "user", "content": prompt})
+
         create_params: Dict[str, Any] = {
             "model": model,
             "input": messages,
-            "tools": [{"type": "web_search_preview"}],
-            "tool_choice": {"type": "web_search_preview"},
         }
         if temperature is not None:
             create_params["temperature"] = temperature
+        if max_tokens is not None:
+            create_params["max_tokens"] = max_tokens
+
+        if use_search:
+            if not self.supports_web_search:
+                raise NotImplementedError("Search not supported by this client")
+            create_params["tools"] = [{"type": "web_search_preview"}]
+            create_params["tool_choice"] = {"type": "web_search_preview"}
 
         response = self.client.responses.create(**create_params)
         text = self._extract_text_from_response(response)
@@ -257,9 +198,10 @@ if __name__ == "__main__":
     try:
         std_client = OpenAIClient()
         # Use the refactored method that returns raw response and extracted text
-        response, result = std_client.get_completion_with_search(
+        response, result = std_client.get_response(
+            prompt="When is Maroon 5 coming to Pittsburgh in 2025? They just announced a new tour.",
             model="gpt-4.1-mini",
-            prompt="When is Maroon 5 coming to Pittsburgh in 2025? They just announced a new tour."
+            use_search=True
         )
 
         if std_client.web_search_occurred(response):
