@@ -78,6 +78,11 @@ CTA_BY_WAREHOUSE: Dict[str, str] = {
     "DEFAULT": "自己買定搵我哋幫你買都得～（{weight_blurb}集運好方便）\n唔識操作？一撳「建立代購訂單」，Buyandship代購即刻幫到你！",
 }
 
+# Special JSON key used when the LLM cannot access the product URL
+ABORT_FIELD = "abort_reason"
+# Fixed value indicating a URL access failure
+ABORT_REASON = "URL_ACCESS_FAILED"
+
 def _append_call_to_action(
     content: str, warehouse_code: str, item_weight: Optional[float] = None
 ) -> str:
@@ -132,6 +137,19 @@ def _build_comprehensive_llm_prompt(
     interest_labels = [i.label for i in available_interests]
 
     # --- Step-by-step workflow ---
+    prompt_lines.append(
+        "1) STEP 1 – PAGE VALIDATION\n"
+        f"   • Fetch Item URL '{item_data.item_url}'.\n"
+        "   • If you get a network/HTTP error (DNS failure, timeout, 5xx), or a 4xx status (404, 401, 403, etc.), immediately output *only*:\n"
+        f"     {{\"{ABORT_FIELD}\": \"{ABORT_REASON}\"}}\n"
+        "     and stop.\n"
+        "   • Otherwise, after the page loads, search for at least one **product title** (e.g. heading tags or `<title>` text that matches the item) **and** at least one **price indicator** (currency symbol like “¥”, “HK$”, “$”, or text like “Add to Cart” / “Buy Now”).\n"
+        "     – If **both** are missing, output *only*:\n"
+        f"       {{\"{ABORT_FIELD}\": \"{ABORT_REASON}\"}}\n"
+        "       and stop.\n"
+    )
+    prompt_lines.append("\n2) NOW proceed to the rest of the workflow:")
+
     prompt_lines.append(
         "\n--- STEP-BY-STEP WORKFLOW ---"
         "\n1. Cleanup the item name provided by the scraper."
@@ -420,6 +438,10 @@ def generate_post(
     llm_response_dict, raw_llm_response = _invoke_comprehensive_llm(
         user_prompt, ai_client, model, expected_keys
     )
+
+    if llm_response_dict and ABORT_FIELD in llm_response_dict:
+        reason = llm_response_dict.get(ABORT_FIELD, "unknown")
+        raise ValueError(f"LLM aborted generation: {reason}")
 
     if not ai_client.web_search_occurred(raw_llm_response):
         raise ValueError("LLM response indicates no web search occurred")

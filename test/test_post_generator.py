@@ -6,6 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from modules.generation.post_generator import (
     _assemble_post_data,
     CTA_BY_WAREHOUSE,
+    _build_comprehensive_llm_prompt,
+    ABORT_FIELD,
+    ABORT_REASON,
 )
 from modules.core.models import PostData, Category, Interest, Warehouse
 
@@ -92,3 +95,17 @@ def test_assemble_post_data_raises_on_none_price():
             whs,
             rates,
         )
+
+
+def test_prompt_includes_abort_instruction():
+    parsed, item, cats, ints, whs, rates = _sample_data()
+    item.region = "HK"
+    prompt, _ = _build_comprehensive_llm_prompt(item, cats, ints)
+    assert ABORT_FIELD in prompt
+    assert ABORT_REASON in prompt
+
+    # abort check should appear before workflow instructions
+    workflow_index = prompt.index("STEP-BY-STEP WORKFLOW")
+    abort_index = prompt.index(ABORT_FIELD)
+    assert abort_index < workflow_index
+
