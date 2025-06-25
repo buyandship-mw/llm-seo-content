@@ -1,6 +1,7 @@
 import os
 import json
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
+from abc import ABC, abstractmethod
 
 from dotenv import load_dotenv
 
@@ -13,7 +14,21 @@ except ImportError:
     OPENAI_LIB_AVAILABLE = False
     print("Warning: 'openai' or 'pydantic' library not found. OpenAIClient functionality will be limited or unavailable.")
 
-class AzureOpenAIClient:
+
+class LLMClient(ABC):
+    """Abstract base interface for LLM API clients."""
+
+    @abstractmethod
+    def get_completion(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        temperature: Optional[float] = 1.0,
+    ) -> Optional[str]:
+        """Return a text completion from the LLM service."""
+        raise NotImplementedError
+
+class AzureOpenAIClient(LLMClient):
     """Client for Azure OpenAI using environment variables.
 
     Required environment variables:
@@ -53,40 +68,21 @@ class AzureOpenAIClient:
     def get_completion(
         self,
         prompt: str,
-        system_message: Optional[str] = "You are a helpful assistant.",
-        max_tokens: Optional[int] = None,
-        temperature: float = 1.0
-    ) -> str:
-        """
-        Gets a simple text completion from the Azure OpenAI service.
+        model: Optional[str] = None,
+        temperature: Optional[float] = 1.0,
+    ) -> Optional[str]:
+        """Return a chat completion from Azure OpenAI."""
 
-        Args:
-            prompt: The user's text prompt.
-            system_message: Content for the system message.
-            max_tokens: Maximum number of tokens to generate.
-            temperature: Sampling temperature.
-
-        Returns:
-            The text content of the LLM's response.
-        
-        Raises:
-            Exception: If an error occurs during the API call or response processing.
-        """
-        messages = []
-        if system_message:
-            messages.append({"role": "system", "content": system_message})
-        messages.append({"role": "user", "content": prompt})
+        message_list = [{"role": "user", "content": prompt}]
         
         print(f"--- AzureOpenAIClient: Requesting completion from deployment: {self.deployment} ---")
         try:
             completion_params: Dict[str, Any] = {
-                "model": self.deployment, # In Azure, 'model' is the deployment name
-                "messages": messages,
+                "model": self.deployment,
+                "messages": message_list,
                 "temperature": temperature,
             }
-            if max_tokens:
-                completion_params["max_tokens"] = max_tokens
-            
+
             chat_completion = self.client.chat.completions.create(**completion_params)
             response_message = chat_completion.choices[0].message
 
@@ -95,9 +91,9 @@ class AzureOpenAIClient:
         except Exception as e:
             print(f"--- AzureOpenAIClient Error: An API error occurred ---")
             print(f"API Error: {e}")
-            raise e
+            return None
 
-class OpenAIClient:
+class OpenAIClient(LLMClient):
     """Client for the standard OpenAI API using environment variables.
 
     Requires the ``OPENAI_API_KEY`` environment variable.
@@ -157,8 +153,8 @@ class OpenAIClient:
 
     def get_completion(
         self,
-        model: str,
-        messages: Union[str, List[Dict[str, Any]]],
+        prompt: str,
+        model: Optional[str] = None,
         temperature: Optional[float] = 1.0,
         tools: Optional[List[Dict]] = None,
     ) -> Optional[str]:
@@ -168,18 +164,21 @@ class OpenAIClient:
 
         Args:
             model: The model name (e.g., "gpt-4.1", "gpt-4o").
-            messages: The prompt, can be a string or list of message objects. Passed as 'input'.
+            prompt: The user's text prompt to send to the model.
             temperature: Sampling temperature. Use None to omit.
             tools: Optional list of tools.
 
         Returns:
             The raw text content from the LLM's response, or None if an error occurs or content is empty.
         """
+        if model is None:
+            raise ValueError("'model' must be provided for OpenAI requests")
+
         print(f"--- OpenAIClient: Requesting completion from model: {model} via responses.create ---")
 
         create_params: Dict[str, Any] = {
             "model": model,
-            "input": messages, # `client.responses.create` uses `input`
+            "input": prompt,
         }
         if tools:
             create_params["tools"] = tools
@@ -229,14 +228,14 @@ class OpenAIClient:
     def get_completion_with_search(
         self,
         model: str,
-        messages: Union[str, List[Dict[str, Any]]],
+        prompt: str,
         temperature: Optional[float] = 1.0,
     ) -> Optional[str]:
         return self.get_completion(
             model=model,
-            messages=messages,
+            prompt=prompt,
             temperature=temperature,
-            tools=[{ "type": "web_search_preview" }]
+            tools=[{"type": "web_search_preview"}]
         )
 
 def extract_and_parse_json(raw_response_text: Optional[str]) -> Any:
@@ -279,7 +278,7 @@ if __name__ == "__main__":
         std_client = OpenAIClient()
         std_response = std_client.get_completion_with_search(
             model="gpt-4.1-mini",
-            messages="When is the F1 film being released?"
+            prompt="When is the F1 film being released?"
         )
         print(f"OpenAI Response: {std_response}")
     except Exception as e:

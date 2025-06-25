@@ -4,7 +4,7 @@ import os
 from typing import Dict, List, Optional, Any, Tuple
 
 from modules.models import PostData, Category, Warehouse, Interest
-from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your client
+from modules.openai_client import LLMClient, extract_and_parse_json
 from modules.csv_parser import load_forex_rates_from_json
 from utils.currency import convert_price
 
@@ -162,12 +162,14 @@ def _build_comprehensive_llm_prompt(
 
 def _invoke_comprehensive_llm(
     user_prompt: str,
-    ai_client: OpenAIClient,
+    ai_client: LLMClient,
     model: str,
     expected_keys: List[str]
 ) -> Optional[Dict[str, Any]]:
-    messages = [{"role": "user", "content": user_prompt}]
-    raw_response_str = ai_client.get_completion_with_search(model=model, messages=messages)
+    if hasattr(ai_client, "get_completion_with_search"):
+        raw_response_str = ai_client.get_completion_with_search(model=model, prompt=user_prompt)
+    else:
+        raw_response_str = ai_client.get_completion(model=model, prompt=user_prompt)
 
     if raw_response_str:
         parsed_json = extract_and_parse_json(raw_response_str)
@@ -296,7 +298,7 @@ def generate_post(
     available_interests: List[Interest],
     valid_warehouses: List[Warehouse],
     currency_conversion_rates: Dict[str, Dict[str, float]],
-    ai_client: OpenAIClient,
+    ai_client: LLMClient,
     model: str
 ) -> PostData:
     print(f"INFO: Starting post generation for URL: {item_data.item_url}, Region: {item_data.region}")

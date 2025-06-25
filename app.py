@@ -1,6 +1,6 @@
 import os
 
-from modules.openai_client import AzureOpenAIClient, OpenAIClient
+from modules.openai_client import AzureOpenAIClient, OpenAIClient, LLMClient
 from modules.csv_parser import (
     load_categories_from_json,
     load_interests_from_json,
