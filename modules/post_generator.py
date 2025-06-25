@@ -202,7 +202,7 @@ def _invoke_comprehensive_llm(
     raw_response, raw_response_str = ai_client.get_response(
         prompt=user_prompt,
         model=model,
-        use_search=True,
+        use_search=ai_client.supports_web_search,
     )
 
     if raw_response_str:
