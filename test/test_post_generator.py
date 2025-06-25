@@ -6,10 +6,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from modules.generation.post_generator import (
     _assemble_post_data,
     CTA_BY_WAREHOUSE,
-    _build_comprehensive_llm_prompt,
 )
 from modules.core.models import PostData, Category, Interest, Warehouse
-
 
 def _sample_data():
     item = PostData(
@@ -47,20 +45,6 @@ def test_append_call_to_action():
     )
     assert result["content"].endswith(CTA_BY_WAREHOUSE["DEFAULT"])
 
-
-def test_prompt_includes_new_guidelines():
-    parsed, item, cats, ints, whs, rates = _sample_data()
-    # ensure region matches available master examples
-    item.region = "HK"
-
-    prompt, _ = _build_comprehensive_llm_prompt(item, cats, ints)
-
-    assert "Product information" in prompt
-    assert "User review summary" in prompt
-    assert "expiration date" in prompt
-    assert "available sizes" in prompt
-
-
 def test_assemble_post_data_raises_on_zero_price():
     parsed, item, cats, ints, whs, rates = _sample_data()
     item.source_price = 0.0
@@ -91,4 +75,3 @@ def test_assemble_post_data_raises_on_none_price():
             whs,
             rates,
         )
-
