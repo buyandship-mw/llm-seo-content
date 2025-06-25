@@ -3,11 +3,11 @@ import json
 import os
 from typing import Dict, List, Optional, Any, Tuple
 
-from modules.models import PostData, Category, Warehouse, Interest
-from modules.llm_client import LLMClient
-from modules.openai_client import OpenAIClient
+from modules.core.models import PostData, Category, Warehouse, Interest
+from modules.clients.llm_client import LLMClient
+from modules.clients.openai_client import OpenAIClient
 from utils.llm import extract_and_parse_json
-from modules.csv_parser import load_forex_rates_from_json
+from modules.io.csv_parser import load_forex_rates_from_json
 from utils.currency import convert_price
 
 # --- Module Constants ---
@@ -202,7 +202,7 @@ def _invoke_comprehensive_llm(
     raw_response, raw_response_str = ai_client.get_response(
         prompt=user_prompt,
         model=model,
-        use_search=True,
+        use_search=ai_client.supports_web_search,
     )
 
     if raw_response_str:

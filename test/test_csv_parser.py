@@ -4,9 +4,9 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from modules.models import PostData
-from modules.csv_parser import parse_csv_to_post_data
-from modules.post_data_builder import PostDataBuilder
+from modules.core.models import PostData
+from modules.io.csv_parser import parse_csv_to_post_data
+from modules.generation.post_data_builder import PostDataBuilder
 
 
 def test_parse_empty_csv():

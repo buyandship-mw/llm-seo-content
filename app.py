@@ -1,7 +1,7 @@
 import os
 
-from modules.openai_client import AzureOpenAIClient, OpenAIClient
-from modules.csv_parser import (
+from modules.clients.openai_client import AzureOpenAIClient, OpenAIClient
+from modules.io.csv_parser import (
     load_categories_from_json,
     load_interests_from_json,
     load_warehouses_from_json,
@@ -9,7 +9,7 @@ from modules.csv_parser import (
     parse_csv_to_post_data,
 )
 
-from modules.executor import process_batch_input_data
+from modules.core.executor import process_batch_input_data
 
 # --- Configuration ---
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))

@@ -3,8 +3,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from modules.post_generator import _assemble_post_data, CTA_BY_WAREHOUSE
-from modules.models import PostData, Category, Interest, Warehouse
+from modules.generation.post_generator import _assemble_post_data, CTA_BY_WAREHOUSE
+from modules.core.models import PostData, Category, Interest, Warehouse
 
 
 def _sample_data():

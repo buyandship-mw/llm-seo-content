@@ -1,7 +1,7 @@
 from dataclasses import MISSING, fields
 from typing import Any, Dict, Callable, List, Optional
 
-from modules.models import PostData
+from modules.core.models import PostData
 
 class PostDataBuilder:
     """Helper for constructing :class:`PostData` from minimal input."""
