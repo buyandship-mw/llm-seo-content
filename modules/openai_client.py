@@ -132,44 +132,38 @@ class OpenAIClient(LLMClient):
         return True
 
     def _extract_text_from_response(self, response: Any) -> Optional[str]:
-        """
-        Helper method to safely extract text content from the response.
-        It checks for various known structures.
-        """
-        if not response or not hasattr(response, 'output') or not response.output:
-            print(f"--- OpenAIClient Warning: Response object is empty or 'output' attribute is missing/empty. Response: {response} ---")
+        """Safely extract text content from either chat or ``responses`` objects."""
+        if not response:
+            print("--- OpenAIClient Warning: Empty response object ---")
+            return None
+
+        if hasattr(response, "choices") and response.choices:
+            choice = response.choices[0]
+            message = getattr(choice, "message", None)
+            if message and getattr(message, "content", None):
+                if isinstance(message.content, str):
+                    return message.content.strip()
+
+        if not hasattr(response, "output") or not response.output:
+            print(f"--- OpenAIClient Warning: Response object missing 'output'. Response: {response} ---")
             return None
 
         if not isinstance(response.output, list):
             print(f"--- OpenAIClient Warning: response.output is not a list. Got: {type(response.output)} ---")
             return None
 
-        # Iterate through items in response.output
-        # This handles cases where the desired content might not be in the first item,
-        # or if the first item doesn't conform to the primary expected structure.
         for item in response.output:
-            if not item or not hasattr(item, 'content') or not item.content:
-                continue # Move to the next item if this one is not structured as expected
-
+            if not item or not hasattr(item, "content") or not item.content:
+                continue
             if not isinstance(item.content, list) or not item.content:
-                continue # Move to the next item if item.content is not a non-empty list
-
-            # We are typically interested in the first content block of an output item
+                continue
             content_block = item.content[0]
             if not content_block:
                 continue
-
-            # Check for the 'text' attribute
-            if hasattr(content_block, 'text') and isinstance(content_block.text, str):
-                # Found text, return it.
+            if hasattr(content_block, "text") and isinstance(content_block.text, str):
                 return content_block.text.strip()
-            # else:
-                # This branch means content_block exists but doesn't have a 'text' string attribute.
-                # Could add more specific logging here if needed.
-                # print(f"--- OpenAIClient Debug: Content block found but no 'text' attribute or not a string: {content_block}")
 
-        # If no text was found after checking all items
-        print(f"--- OpenAIClient Warning: Could not extract text content from any item in 'response.output' using known structures. Response: {response} ---")
+        print(f"--- OpenAIClient Warning: Could not extract text content from any item in 'response.output'. Response: {response} ---")
         return None
 
     def get_completion(
@@ -251,12 +245,44 @@ class OpenAIClient(LLMClient):
         temperature: float | None = 1.0,
     ) -> Optional[str]:
         messages = [{"role": "user", "content": prompt}]
-        return self.get_completion(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            tools=[{"type": "web_search_preview"}]
-        )
+
+        if not hasattr(self.client, "responses") or not hasattr(self.client.responses, "create"):
+            print("--- OpenAIClient Error: The 'responses.create' API is not available in your version of the 'openai' library or client setup. ---")
+            return None
+
+        create_params = {
+            "model": model,
+            "messages": messages,
+            "tools": [{"type": "web_search_preview"}],
+            "tool_choice": {"type": "web_search_preview"},
+        }
+        if temperature is not None:
+            create_params["temperature"] = temperature
+
+        try:
+            completion = self.client.responses.create(**create_params)
+            if not hasattr(completion, "choices") or not completion.choices:
+                print("--- OpenAIClient Warning: Response missing choices ---")
+                return None
+            choice = completion.choices[0]
+            calls = getattr(choice.message, "tool_calls", None)
+            if not calls or choice.finish_reason != "tool_calls":
+                print("--- OpenAIClient Warning: Web search tool was not invoked ---")
+                return None
+            if not any(getattr(c, "type", "") == "web_search_preview" for c in calls):
+                print("--- OpenAIClient Warning: Web search tool missing from call list ---")
+                return None
+            return self._extract_text_from_response(completion)
+        except AttributeError as ae:
+            print(f"--- OpenAIClient Error: An AttributeError occurred: {ae} ---")
+            import traceback
+            traceback.print_exc()
+            return None
+        except Exception as e:
+            print(f"--- OpenAIClient Error: {e} ---")
+            import traceback
+            traceback.print_exc()
+            return None
 
 
 if __name__ == "__main__":
