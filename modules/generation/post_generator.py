@@ -219,10 +219,13 @@ def _invoke_comprehensive_llm(
     expected_keys: List[str]
 
 ) -> Tuple[Optional[Dict[str, Any]], Any]:
+    if not ai_client.supports_web_search:
+        raise ValueError("LLM client does not support web search, cannot proceed.")
+    
     raw_response, raw_response_str = ai_client.get_response(
         prompt=user_prompt,
         model=model,
-        use_search=True,
+        use_search=ai_client.supports_web_search,
     )
 
     if raw_response_str:
