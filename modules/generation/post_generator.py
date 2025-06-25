@@ -162,9 +162,9 @@ def _build_comprehensive_llm_prompt(
     # item_name
     prompt_lines.append(f"The scraper found the name '{item_data.item_name}'.")
     prompt_lines.append(
-        "- Clean the scraped name by removing any extra adjectives, model numbers, or marketing copy."
-        " Then translate the scraped name fully into English."
-        " Store this into `item_name`."
+        "- Clean the scraped name by removing marketing phrases, adjectives, year or version numbers."
+        " Keep only the brand and product type, no more than 6-8 words."
+        " Translate the result into English and save it as `item_name`."
     )
 
     # category (MCQ)

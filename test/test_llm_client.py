@@ -1,4 +1,5 @@
 from typing import Any, Optional
+import pytest
 
 from modules.clients.llm_client import LLMClient
 from modules.clients.openai_client import OpenAIClient, AzureOpenAIClient
@@ -59,9 +60,8 @@ def test_invoke_comprehensive_llm_respects_flag():
     assert search_client.called_search is True
     assert res1 == {"a": 1}
 
-    res2, raw2 = _invoke_comprehensive_llm("hi", no_search_client, "model", ["a"])
-    assert no_search_client.called is True
-    assert res2 == {"a": 1}
+    with pytest.raises(ValueError):
+        _invoke_comprehensive_llm("hi", no_search_client, "model", ["a"])
 
 
 class DummyFailSearchClient(LLMClient):

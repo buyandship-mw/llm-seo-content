@@ -59,4 +59,6 @@ def test_prompt_includes_new_guidelines():
     assert "User review summary" in prompt
     assert "expiration date" in prompt
     assert "available sizes" in prompt
-    assert "Translate both the cleaned 'item_name' and the generated 'title' into English." in prompt
+    assert "marketing phrases" in prompt
+    assert "brand and product type" in prompt
+    assert "Translate the result into English and save it as `item_name`." in prompt
