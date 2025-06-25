@@ -5,7 +5,8 @@ from typing import Dict, List, Optional, Any, Tuple
 
 from modules.models import PostData, Category, Warehouse, Interest
 from modules.llm_client import LLMClient
-from modules.openai_client import OpenAIClient, extract_and_parse_json # Using your client
+from modules.openai_client import OpenAIClient
+from utils.llm import extract_and_parse_json
 from modules.csv_parser import load_forex_rates_from_json
 from utils.currency import convert_price
 
