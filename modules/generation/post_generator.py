@@ -75,7 +75,7 @@ PREFERRED_LANG_BY_REGION: Dict[str, str] = {
 
 # Default call-to-action text. Map keys are warehouse codes for future use.
 CTA_BY_WAREHOUSE: Dict[str, str] = {
-    "DEFAULT": "Shop with Buyandship today!",
+    "DEFAULT": "自己買定搵我哋幫你買都得～（大約xx磅，集運好方便）\n唔識操作？一撳「建立代購訂單」，Buyandship代購即刻幫到你！",
 }
 
 def _append_call_to_action(content: str, warehouse_code: str) -> str:
