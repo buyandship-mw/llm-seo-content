@@ -127,13 +127,16 @@ def _build_comprehensive_llm_prompt(
     category_labels = [c.label for c in available_bns_categories]
     interest_labels = [i.label for i in available_interests]
 
-    # Early abort instruction
-    prompt_lines.append(
-        f"If you cannot access '{item_data.item_url}' or any search result, "
-        f"reply only with JSON {{\"{ABORT_FIELD}\": \"{ABORT_REASON}\"}}."
-    )
-
     # --- Step-by-step workflow ---
+    prompt_lines.append(
+        f"1) FIRST, attempt to fetch the Item URL '{item_data.item_url}'.\n"
+        f"   • If the fetch fails for any reason (network error, 404, timeout, whatever), your only output must be exactly:\n"
+        f"     {{\"{ABORT_FIELD}\": \"{ABORT_REASON}\"}}\n"
+        "   • You MUST not do anything else after that."
+    )
+    prompt_lines.append(
+        "\n2) Now, and only now, proceed to the rest of the workflow:"
+    )
     prompt_lines.append(
         "\n--- STEP-BY-STEP WORKFLOW ---"
         "\n1. Cleanup the item name provided by the scraper."

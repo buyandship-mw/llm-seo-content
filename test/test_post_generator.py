@@ -87,3 +87,8 @@ def test_prompt_includes_abort_instruction():
     assert ABORT_FIELD in prompt
     assert ABORT_REASON in prompt
 
+    # abort check should appear before workflow instructions
+    workflow_index = prompt.index("STEP-BY-STEP WORKFLOW")
+    abort_index = prompt.index(ABORT_FIELD)
+    assert abort_index < workflow_index
+
