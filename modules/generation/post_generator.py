@@ -86,7 +86,7 @@ def _append_call_to_action(
 
     weight_blurb = ""
     if item_weight:
-        pounds = round(item_weight / 453.59237, 1)
+        pounds = round(item_weight / 453.59237, 2)
         weight_blurb = f"大約{pounds}磅，"
 
     cta = cta_template.format(weight_blurb=weight_blurb)
