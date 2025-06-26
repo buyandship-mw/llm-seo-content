@@ -134,12 +134,8 @@ def _build_comprehensive_llm_prompt(
     # --- Step-by-step workflow ---
     prompt_lines.append(
         "\n--- STEP-BY-STEP WORKFLOW ---"
-        "\n1. Cleanup the item name provided by the scraper. If the value seems to be a broad category "
-        "(e.g. 'Shoes' or 'Electronics') rather than a specific product, use the supplied URL or a quick web "
-        "search to determine the real product name."
-        "\n2. Select the most suitable category and interest from the lists above (never create new values)."
-        "\n3. Generate region-specific 'title' and 'content' matching the exact structure and tone of the provided examples."
-        "\n4. Output a single valid JSON object using the structure below with no commentary or markdown."
+        "\n1. If the scraped name is clearly a broad category (e.g. 'Shoes'), "
+        "use the item URL or a quick search to find the actual product name."
     )
 
     # --- Output format & guardrails ---
@@ -173,10 +169,9 @@ def _build_comprehensive_llm_prompt(
     # item_name
     prompt_lines.append(f"The scraper found the name '{item_data.item_name}'.")
     prompt_lines.append(
-        "- Clean the scraped name by removing marketing phrases, adjectives, year or version numbers."
-        " Keep only the brand and product type, no more than 6-8 words."
-        " Translate the result into English and save it as `item_name`."
-        " If the provided name is just a category, determine the correct product name using the URL or your search results before cleaning."
+        "- Remove marketing fluff, adjectives, and version numbers; keep only the brand and product type (6-8 words max)."
+        " Translate the cleaned result into English and save as `item_name`."
+        " If it's merely a category, use the URL or a quick search to find the real product name first."
     )
 
     # category (MCQ)
