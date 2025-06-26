@@ -138,15 +138,13 @@ def _build_comprehensive_llm_prompt(
 
     # --- Step-by-step workflow ---
     prompt_lines.append(
-        "1) STEP 1 – PAGE VALIDATION\n"
-        f"   • Fetch Item URL '{item_data.item_url}'.\n"
-        "   • If you get a network/HTTP error (DNS failure, timeout, 5xx), or a 4xx status (404, 401, 403, etc.), immediately output *only*:\n"
-        f"     {{\"{ABORT_FIELD}\": \"{ABORT_REASON}\"}}\n"
-        "     and stop.\n"
-        "   • Otherwise, after the page loads, search for at least one **product title** (e.g. heading tags or `<title>` text that matches the item) **and** at least one **price indicator** (currency symbol like “¥”, “HK$”, “$”, or text like “Add to Cart” / “Buy Now”).\n"
-        "     – If **both** are missing, output *only*:\n"
+        "1) STEP 1 – LOGIN OVERLAY ONLY CHECK\n"
+        f"   • Fetch the Item URL '{item_data.item_url}'.\n"
+        "   • After the page loads, if the **only visible content** is a login overlay or prompt\n"
+        "     (e.g. words like “登录”, “Sign In”, “Please log in”) and **no product details** are accessible,\n"
+        "     immediately output *only*:\n"
         f"       {{\"{ABORT_FIELD}\": \"{ABORT_REASON}\"}}\n"
-        "       and stop.\n"
+        "     and stop.\n"
     )
     prompt_lines.append("\n2) NOW proceed to the rest of the workflow:")
 
