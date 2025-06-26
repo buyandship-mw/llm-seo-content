@@ -9,7 +9,7 @@ from modules.generation.post_generator import (
 )
 from modules.core.models import PostData, Category, Interest, Warehouse
 
-def _sample_data():
+def _sample_data(weight=None):
     item = PostData(
         title="",
         content="",
@@ -22,6 +22,7 @@ def _sample_data():
         source_price=1.0,
         source_currency="USD",
         item_unit_price=1.0,
+        item_weight=weight,
         region="US",
     )
     categories = [Category(label="cat", value=1)]
@@ -32,7 +33,7 @@ def _sample_data():
     return parsed, item, categories, interests, warehouses, rates
 
 
-def test_append_call_to_action():
+def test_append_call_to_action_without_weight():
     parsed, item, cats, ints, whs, rates = _sample_data()
     result = _assemble_post_data(
         parsed,
@@ -43,7 +44,23 @@ def test_append_call_to_action():
         whs,
         rates,
     )
-    assert result["content"].endswith(CTA_BY_WAREHOUSE["DEFAULT"])
+    expected_cta = CTA_BY_WAREHOUSE["DEFAULT"].format(weight_blurb="")
+    assert result["content"].endswith(expected_cta)
+
+
+def test_append_call_to_action_with_weight():
+    parsed, item, cats, ints, whs, rates = _sample_data(weight=1000)
+    result = _assemble_post_data(
+        parsed,
+        "WH",
+        item,
+        cats,
+        ints,
+        whs,
+        rates,
+    )
+    expected_cta = CTA_BY_WAREHOUSE["DEFAULT"].format(weight_blurb="大約2.2磅，")
+    assert result["content"].endswith(expected_cta)
 
 def test_assemble_post_data_raises_on_zero_price():
     parsed, item, cats, ints, whs, rates = _sample_data()

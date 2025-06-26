@@ -75,12 +75,21 @@ PREFERRED_LANG_BY_REGION: Dict[str, str] = {
 
 # Default call-to-action text. Map keys are warehouse codes for future use.
 CTA_BY_WAREHOUSE: Dict[str, str] = {
-    "DEFAULT": "自己買定搵我哋幫你買都得～（大約xx磅，集運好方便）\n唔識操作？一撳「建立代購訂單」，Buyandship代購即刻幫到你！",
+    "DEFAULT": "自己買定搵我哋幫你買都得～（{weight_blurb}集運好方便）\n唔識操作？一撳「建立代購訂單」，Buyandship代購即刻幫到你！",
 }
 
-def _append_call_to_action(content: str, warehouse_code: str) -> str:
-    """Append a CTA to ``content`` based on ``warehouse_code``."""
-    cta = CTA_BY_WAREHOUSE.get(warehouse_code, CTA_BY_WAREHOUSE["DEFAULT"])
+def _append_call_to_action(
+    content: str, warehouse_code: str, item_weight: Optional[float] = None
+) -> str:
+    """Append a CTA to ``content`` based on ``warehouse_code`` and ``item_weight``."""
+    cta_template = CTA_BY_WAREHOUSE.get(warehouse_code, CTA_BY_WAREHOUSE["DEFAULT"])
+
+    weight_blurb = ""
+    if item_weight:
+        pounds = round(item_weight / 453.59237, 1)
+        weight_blurb = f"大約{pounds}磅，"
+
+    cta = cta_template.format(weight_blurb=weight_blurb)
     content = content.rstrip() if content else ""
     return f"{content}\n\n{cta}" if cta else content
 
@@ -371,7 +380,9 @@ def _assemble_post_data(
 
     # Append CTA to the content based on the final warehouse
     final_data["content"] = _append_call_to_action(
-        final_data.get("content", ""), final_data["warehouse"]
+        final_data.get("content", ""),
+        final_data["warehouse"],
+        final_data.get("item_weight"),
     )
 
     return final_data
