@@ -31,6 +31,7 @@ class PostData:
     region: str
     item_weight: Optional[float] = None
     category_label: str = None
+    brand_name: str = None
     user: str = "B2kKF5R47K8VpY3ynBh9CB"
     status: str = "draft"
     is_pinned: bool = False

@@ -15,6 +15,7 @@ def create_sample_post(idx: int) -> PostData:
         warehouse="WH",
         item_url=f"http://example.com/{idx}",
         item_name=f"Item {idx}",
+        brand_name=f"Brand{idx}",
         source_price=idx * 1.0,
         source_currency="USD",
         item_unit_price=idx * 1.0,

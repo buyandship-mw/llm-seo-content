@@ -19,6 +19,7 @@ def _sample_data(weight=None):
         warehouse="",
         item_url="http://example.com",
         item_name="",
+        brand_name="",
         source_price=1.0,
         source_currency="USD",
         item_unit_price=1.0,
@@ -29,7 +30,7 @@ def _sample_data(weight=None):
     interests = [Interest(label="int", value="int")]
     warehouses = [Warehouse(label="w", value="WH", currency="USD")]
     rates = {"USD": {"USD": 1.0}}
-    parsed = {"item_name": "Item", "title": "Title", "content": "Base"}
+    parsed = {"item_name": "Item", "brand_name": "Brand", "title": "Title", "content": "Base"}
     return parsed, item, categories, interests, warehouses, rates
 
 
