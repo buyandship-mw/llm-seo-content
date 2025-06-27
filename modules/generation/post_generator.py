@@ -145,9 +145,17 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append(
         "Your entire response MUST be exactly one JSON object with these keys."
     )
-    output_fields = ["item_name", "category", "interest", "title", "content"]
+    output_fields = [
+        "item_name",
+        "brand_name",
+        "category",
+        "interest",
+        "title",
+        "content",
+    ]
     field_desc = {
         "item_name": '  "item_name": "string"',
+        "brand_name": '  "brand_name": "string"',
         "category": '  "category": "string_from_list"',
         "interest": '  "interest": "string_from_list"',
         "source_currency": '  "source_currency": "3_letter_code_or_\"N/A\""',
@@ -174,6 +182,7 @@ def _build_comprehensive_llm_prompt(
         "- Clean the scraped name by removing marketing phrases, adjectives, year or version numbers."
         " Keep only the brand and product type, no more than 6-8 words."
         " Translate the result into English and save it as `item_name`."
+        " Extract just the brand name and save it separately as `brand_name`."
     )
 
     # category (MCQ)
@@ -261,6 +270,7 @@ def _parse_llm_post_fields(
     """Convert category/interest labels from the LLM into stored values."""
     parsed = {
         "item_name": llm_output.get("item_name"),
+        "brand_name": llm_output.get("brand_name"),
         "title": llm_output.get("title"),
         "content": llm_output.get("content"),
     }
@@ -309,6 +319,7 @@ def _assemble_post_data(
 
     # --- Apply LLM generated / transformed output ---
     final_data["item_name"] = parsed_llm_fields.get("item_name")
+    final_data["brand_name"] = parsed_llm_fields.get("brand_name")
     final_data["title"] = parsed_llm_fields.get("title")
     final_data["content"] = parsed_llm_fields.get("content")
 

@@ -25,6 +25,7 @@ class PostData:
     warehouse: str
     item_url: str
     item_name: str
+    brand_name: str
     source_price: float
     source_currency: str
     item_unit_price: float
