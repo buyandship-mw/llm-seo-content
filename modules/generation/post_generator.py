@@ -15,7 +15,6 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
     "HK": [{
         "item_url": "https://www.target.com/p/fujifilm-instax-mini-12-camera/-/A-88743864",
         "item_name": "Fujifilm Instax Mini 12 Camera",
-        "warehouse": "warehouse-4px-uspdx",
         "title": "📸 Fujifilm Instax Mini 12 Camera",
         "content":
             """
@@ -33,7 +32,6 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
     }, {
         "item_url": "https://www.gourmandise.jp/view/item/000000009318",
         "item_name": "Chiikawa Wireless Stereo Headphones",
-        "warehouse": "warehouse-qs-osaka",
         "title": "🎧 Chiikawa Wireless Stereo Headphones",
         "content":
             """
@@ -50,7 +48,6 @@ MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
     }, {
         "item_url": "https://www.standoil.kr/product/detail.html?product_no=719&cate_no=543&display_group=1",
         "item_name": "More Baguette Bag / Maroon",
-        "warehouse": "warehouse-kas-seoul",
         "title": "🎧 👜 More Baguette Bag / Maroon",
         "content":
             """
@@ -135,7 +132,7 @@ def _build_comprehensive_llm_prompt(
     prompt_lines.append(
         "\n--- STEP-BY-STEP WORKFLOW ---"
         "\n1. Cleanup the item name provided by the scraper."
-        "\n2. Select the most suitable category and interest from the lists above (never create new values)."
+        "\n2. Select the most suitable post and item categories from the provided lists."
         "\n3. Generate region-specific 'title' and 'content' matching the exact structure and tone of the provided examples."
         "\n4. Output a single valid JSON object using the structure below with no commentary or markdown."
     )
@@ -177,12 +174,15 @@ def _build_comprehensive_llm_prompt(
 
     # Field-specific instructions
     # item_name
-    prompt_lines.append(f"The scraper found the name '{item_data.item_name}'.")
+    prompt_lines.append(f"The scraper found the item name: {item_data.item_name}.")
     prompt_lines.append(
-        "- Clean the scraped name by removing marketing phrases, adjectives, year or version numbers."
-        " Keep only the brand and product type, no more than 6-8 words."
-        " Translate the item name fully into English and save it as `item_name`."
-        " Extract just the brand name from item name and save it separately as `brand_name`."
+        "If the scraped item name describes a category of items (e.g., 'clothing') rather than a specific product, load the URL and find the most relevant product name from the page."
+        "Then clean the item name by removing marketing phrases, adjectives, year or version numbers."
+        "Keep only the brand and product type, no more than 6-8 words."
+        "Translate the item name fully into English and save it as `item_name`."
+    )
+    prompt_lines.append(
+        "Extract just the brand name from item name and save it separately as `brand_name`."
     )
 
     # category (MCQ)
