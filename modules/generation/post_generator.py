@@ -72,21 +72,48 @@ PREFERRED_LANG_BY_REGION: Dict[str, str] = {
 
 # Default call-to-action text. Map keys are warehouse codes for future use.
 CTA_BY_WAREHOUSE: Dict[str, str] = {
-    "DEFAULT": "自己買定搵我哋幫你買都得～（{weight_blurb}集運好方便）\n唔識操作？一撳「建立代購訂單」，Buy&Ship代購即刻幫到你！",
+    "DEFAULT": (
+        "香港未必有售 {item_name}？想知道{item_name} 怎樣買？\n"
+        "在{country}網站下單，{weight_blurb}透過 Buy&Ship 運回香港，立即建立代購訂單！"
+    ),
+}
+
+# Mapping of warehouse code to its corresponding country/region name in Chinese
+COUNTRY_BY_WAREHOUSE: Dict[str, str] = {
+    "warehouse-4px-uspdx": "美國",
+    "warehouse-bnsus-la": "美國",
+    "warehouse-bnsca-toronto": "加拿大",
+    "warehouse-bnsuk-ashford": "英國",
+    "warehouse-bnsit-milan": "意大利",
+    "warehouse-qs-osaka": "日本",
+    "warehouse-bnsjp-2": "日本",
+    "warehouse-kas-seoul": "韓國",
+    "warehouse-lht-dongguan": "中國",
+    "warehouse-bns-hk": "香港",
+    "warehouse-bnstw-taipei": "台灣",
+    "warehouse-bnsau-sydney": "澳洲",
+    "warehouse-bnsth-bangkok": "泰國",
+    "warehouse-bnsid-jakarta": "印尼",
 }
 
 def _append_call_to_action(
-    content: str, warehouse_code: str, item_weight: Optional[float] = None
+    content: str,
+    warehouse_code: str,
+    item_name: str,
+    item_weight: Optional[float] = None,
 ) -> str:
     """Append a CTA to ``content`` based on ``warehouse_code`` and ``item_weight``."""
     cta_template = CTA_BY_WAREHOUSE.get(warehouse_code, CTA_BY_WAREHOUSE["DEFAULT"])
+    country = COUNTRY_BY_WAREHOUSE.get(warehouse_code, "")
 
     weight_blurb = ""
     if item_weight:
         pounds = round(item_weight / 453.59237, 2)
         weight_blurb = f"大約{pounds}磅，"
 
-    cta = cta_template.format(weight_blurb=weight_blurb)
+    cta = cta_template.format(
+        weight_blurb=weight_blurb, item_name=item_name, country=country
+    )
     content = content.rstrip() if content else ""
     return f"{content}\n\n{cta}" if cta else content
 
@@ -389,10 +416,11 @@ def _assemble_post_data(
         )
         final_data["interest"] = next(iter(interest_values))
 
-    # Append CTA to the content based on the final warehouse
+    # Append CTA to the content based on the final warehouse and item name
     final_data["content"] = _append_call_to_action(
         final_data.get("content", ""),
         final_data["warehouse"],
+        final_data.get("item_name", ""),
         final_data.get("item_weight"),
     )
 
