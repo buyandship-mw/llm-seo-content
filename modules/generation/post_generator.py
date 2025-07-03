@@ -12,57 +12,56 @@ from utils.currency import convert_price
 
 # --- Module Constants ---
 MASTER_POST_EXAMPLES: Dict[str, List[Dict[str, str]]] = {
-    "HK": [{
-        "item_url": "https://www.target.com/p/fujifilm-instax-mini-12-camera/-/A-88743864",
-        "item_name": "Fujifilm Instax Mini 12 Camera",
-        "title": "📸 Fujifilm Instax Mini 12 Camera",
-        "content":
-            """
-產品介紹
-- 得意設計＋超易用
-- 自動曝光，唔使調光
-- 自拍模式＋自拍鏡
-- 約 5 秒即印，即影即分享
-- 紫色款，打卡又靚又有型
+    "HK": [
+        {
+            "item_url": "https://www.target.com/p/fujifilm-instax-mini-12-camera/-/A-88743864",
+            "item_name": "Fujifilm Instax Mini 12 Camera",
+            "title": "📸 Fujifilm Instax Mini 12 | 即影即有，輕鬆記錄生活點滴",
+            "content":
+                """
+想隨時隨地用相片捕捉生活嘅美好時刻？
+• 自動曝光功能，無論光暗環境，一按即拍出清晰靚相。
+• 近拍模式升級，影美食、小物特寫，細節都睇得一清二楚。
+• 內置自拍鏡，同朋友 selfie 構圖更方便，唔再怕影到半邊面。
+• 5 秒高速打印，歡樂即時分享，絕對係派對必備！
 
-用家評價
-👍 易用、靚設計，新手啱用
-⚠️ 強光下會過曝，要小心使用
-            """
-    }, {
-        "item_url": "https://www.gourmandise.jp/view/item/000000009318",
-        "item_name": "Chiikawa Wireless Stereo Headphones",
-        "title": "🎧 Chiikawa Wireless Stereo Headphones",
-        "content":
-            """
-產品介紹
-- 可愛嘅 Chiikawa 角色設計
-- 耳塞式設計，確保音質清晰
-- 支援藍牙連接，8米內無線播放音樂
-- 耳機上嘅觸控開關，方便操作
+超過 10,000+ 用家 ⭐4.7/5 好評，公認「新手最易用嘅即影即有相機」。
+【美國 Target 正貨】
+                """
+        },
+        {
+            "item_url": "https://www.standoil.kr/product/detail.html?product_no=719&cate_no=543&display_group=1",
+            "item_name": "Standoil More Baguette Bag",
+            "title": "👜 Standoil More Baguette Bag | 韓國小眾設計，日常百搭之選",
+            "content":
+                """
+搵緊一個返工、放假都啱用嘅手袋？
+• 採用光澤感人造皮革，觸感柔軟又易打理，落雨都唔驚。
+• 容量充足，輕鬆收納銀包、電話、化妝品等日常必備品。
+• 內附拉鍊暗格及雙開口袋，方便分類收納，告別大海撈針。
+• 簡約法棍包型，設計經典，輕鬆配襯任何 OOTD。
 
-用家評價
-👍 可愛嘅設計，音質清晰，連接穩定
-⚠️ 連續使用時間較短，需要經常充電
-            """
-    }, {
-        "item_url": "https://www.standoil.kr/product/detail.html?product_no=719&cate_no=543&display_group=1",
-        "item_name": "More Baguette Bag / Maroon",
-        "title": "🎧 👜 More Baguette Bag / Maroon",
-        "content":
-            """
-產品介紹
-- 採用柔軟人造皮革，觸感舒適
-- 寬敞內部空間，方便收納日常物品
-- 配備柔滑拉鍊，方便開關
-- 配有手柄固定器，方便攜帶
-- 內部設有2個開放式口袋和1個拉鍊口袋，方便分類收納
+韓國女生人手一個，官網經常斷貨嘅人氣款式！
+【韓國官網直送】
+                """
+        },
+        {
+            "item_url": "https://www.lush.com/uk/en/p/wasabi-shan-kui-shampoo",
+            "item_name": "Lush Wasabi Shan Kui Shampoo",
+            "title": "🌿 Lush Wasabi Shan Kui Shampoo | 喚醒頭皮，重現豐盈感",
+            "content":
+                """
+覺得頭髮扁塌、冇生氣？想搵返清爽嘅頭皮感覺？
+• 獨特山葵、辣根成分，有效刺激頭皮，促進頭髮健康生長。
+• 海鹽同公平貿易橄欖油，溫和潔淨同時深層滋潤，髮絲更顯光澤。
+• 薄荷腦同柑橘精油，帶來清新冰涼感，洗後成個人都精神晒。
+• 適合追求頭髮豐盈感、關注頭皮健康嘅你。
 
-用家評價
-👍 實用又時尚，適合日常使用
-⚠️ 需注意保養，避免長時間曝曬以免變色
-            """
-    }]
+唔少用家評價「用完頭皮好爽，頭髮明顯蓬鬆咗」。
+【英國 LUSH 手工製造】
+                """
+        }
+    ]
 }
 
 # Preferred language for item_name and title by region
@@ -73,8 +72,8 @@ PREFERRED_LANG_BY_REGION: Dict[str, str] = {
 # Default call-to-action text. Map keys are warehouse codes for future use.
 CTA_BY_WAREHOUSE: Dict[str, str] = {
     "DEFAULT": (
-        "香港未必有售 {item_name}？想知道{item_name} 怎樣買？\n"
-        "在{country}網站下單，{weight_blurb}透過 Buy&Ship 運回香港，立即建立代購訂單！"
+        "想入手{item_name}香港未必有？ 想知道{item_name} 怎樣買？\n"
+        "立即在{country}網站下單，{weight_blurb}透過 Buy&Ship 運回香港，立即建立代購訂單！"
     ),
 }
 
@@ -155,16 +154,25 @@ def _build_comprehensive_llm_prompt(
     category_labels = [c.label for c in available_bns_categories]
     interest_labels = [i.label for i in available_interests]
 
-    # --- Step-by-step workflow ---
+    # --- REVISED: Step-by-step workflow for persona-derivation ---
     prompt_lines.append(
-        "\n--- STEP-BY-STEP WORKFLOW ---"
-        "\n1. Cleanup the item name provided by the scraper."
-        "\n2. Select the most suitable post and item categories from the provided lists."
-        "\n3. Generate region-specific 'title' and 'content' matching the exact structure and tone of the provided examples."
-        "\n4. Output a single valid JSON object using the structure below with no commentary or markdown."
+        (
+            "\n--- YOUR MISSION & STEP-BY-STEP WORKFLOW ---"
+            "\nYou are an expert e-commerce copywriter specializing in SEO and direct response for the Hong Kong market."
+            "\nYour mission is to generate a compelling, persona-driven product post."
+            "\nFollow this internal thought process precisely:"
+            "\n"
+            "\n**Part 1: Internal Analysis (Do not include in final JSON output)**"
+            "\n1.  **Analyze Product:** Access the `item_url` to understand the product's features, benefits, and user reviews."
+            "\n2.  **Define Buyer Persona:** Based on the product and target region ('{region}'), internally define the primary buyer persona. Ask yourself: Who are they? What do they value? (e.g., 'A tech-savvy student who values portability and battery life' or 'A new parent prioritizing safety and ease of use')."
+            "\n3.  **Formulate Copy Strategy:** Based on the persona, internally formulate a specific angle for the AIDA copy framework. Determine the main hook (Attention), key benefits (Interest), and strongest social proof (Desire)."
+            "\n"
+            "\n**Part 2: Execute and Generate JSON Output**"
+            "\nAfter completing your internal analysis, execute the following tasks and provide the output *only* in the required JSON structure below, with no commentary or markdown."
+        ).format(region=item_data.region)
     )
 
-    # --- Output format & guardrails ---
+    # --- REQUIRED JSON OUTPUT STRUCTURE (No changes needed here) ---
     prompt_lines.append("\n--- REQUIRED JSON OUTPUT STRUCTURE ---")
     prompt_lines.append(
         "Your entire response MUST be exactly one JSON object with these keys."
@@ -182,76 +190,64 @@ def _build_comprehensive_llm_prompt(
         "brand_name": '  "brand_name": "string"',
         "category": '  "category": "string_from_list"',
         "interest": '  "interest": "string_from_list"',
-        "source_currency": '  "source_currency": "3_letter_code_or_\"N/A\""',
+        "source_currency": '  "source_currency": "3_letter_code_or_\\"N/A\\""',
         "source_price": '  "source_price": "float"',
         "title": '  "title": "string"',
         "content": '  "content": "string_plain_text"',
         "item_weight": '  "item_weight": "float_or_null"',
     }
     output_lines = ["{\n"]
-    for idx, key in enumerate(output_fields):
-        comma = "," if idx < len(output_fields) - 1 else ""
+    output_fields_with_desc = [
+        "item_name",
+        "brand_name",
+        "category",
+        "interest",
+        "title",
+        "content",
+    ]
+    for idx, key in enumerate(output_fields_with_desc):
+        comma = "," if idx < len(output_fields_with_desc) - 1 else ""
         output_lines.append(f"{field_desc[key]}{comma}\n")
     output_lines.append("}")
     prompt_lines.append("".join(output_lines))
 
+    # --- REVISED: Streamlined client data and instructions ---
     prompt_lines.append("\n--- CLIENT-PROVIDED DATA & INSTRUCTIONS ---")
     prompt_lines.append(f"Item URL to analyze: {item_data.item_url}")
     prompt_lines.append(f"Target region for the post style: {item_data.region}")
-
-    # Field-specific instructions
-    # item_name
-    prompt_lines.append(f"The scraper found the item name: {item_data.item_name}.")
+    prompt_lines.append(f"The scraper found this initial item name: {item_data.item_name}.")
     prompt_lines.append(
-        "If the scraped item name describes a category of items (e.g., 'clothing') rather than a specific product, load the URL and find the most relevant product name from the page."
-        "Then clean the item name by removing marketing phrases, adjectives, year or version numbers."
-        "Keep only the brand and product type, no more than 6-8 words."
-        "Translate the item name fully into English and save it as `item_name`."
-    )
-    prompt_lines.append(
-        "Extract just the brand name from item name and save it separately as `brand_name`."
+        "\n--- FIELD-SPECIFIC TASKS ---"
+        "\n- `item_name` & `brand_name`: Based on your analysis, clean the item name (keep only brand and model, max 6-8 words) and extract the `brand_name`."
+        f"\n- `category`: From the list `{category_labels}`, select the single best category."
+        f"\n- `interest`: From the list `{interest_labels}`, select the single best interest."
+        "\n- `title` & `content`: Generate these using the persona and copy strategy you defined in Part 1. The `content` must strictly follow the AIDA model."
     )
 
-    # category (MCQ)
-    prompt_lines.append(
-        f"- From the following list of valid post categories: {category_labels}, select the single most appropriate category for the post. Place your choice in the 'category' field."
-    )
-
-    # interest (MCQ)
-    prompt_lines.append(
-        f"- From the following list of valid item categories: {interest_labels}, select the single most appropriate category for the item. Place your choice in the 'interest' field."
-    )
-    
-    # title & content
+    # --- REVISED: More direct content generation instructions ---
     master_examples_list_for_region = MASTER_POST_EXAMPLES.get(item_data.region.upper())
-    if not master_examples_list_for_region: # Check if the list is None or empty
+    if not master_examples_list_for_region:
         raise NotImplementedError(
-            f"CRITICAL PROMPT WARNING: No master examples found for region '{item_data.region}'. "
-            "ICL for title/content will not be effective."
+            f"CRITICAL PROMPT WARNING: No master examples for region '{item_data.region}'."
         )
-    else:
-        master_examples_json_str = json.dumps(master_examples_list_for_region, ensure_ascii=False, indent=2)
-        language_guidance = (
-            f"The title and content must both be in the same language as the master examples for '{item_data.region}' "
-            "and should similarly match their language style."
-        )
+
+    master_examples_json_str = json.dumps(master_examples_list_for_region, ensure_ascii=False, indent=2)
 
     prompt_lines.append(
         "\n--- CONTENT GENERATION (TITLE & CONTENT) ---\n"
-        "Based on all information (client-provided and your findings from your search), generate:\n"
-        "  • `title` (string): prepend an emoji, then reuse exactly the cleaned `item_name` (no new terms).\n"
-        "  • `content` (string, plain text, NO MARKDOWN):\n"
-        "    1. Product information — bullet points in a formal tone describing key details.\n"
-        "       - Include the expiration date if the item is food.\n"
-        "       - Include available sizes if the item is clothing.\n"
-        "    2. User review summary — bullet points in a casual tone summarizing user feedback.\n\n"
-        f"The style, tone, and structure must closely follow the master examples for {item_data.region}, as described above. "
-        f"{language_guidance}"
+        "Remember the persona you defined. Now, generate:\n"
+        "  • `title` (string, max 60 chars): Prepend a relevant emoji. Write a benefit-driven title that speaks to your persona.\n"
+        "  • `content` (string, 110-150 words, plain text):\n"
+        "    Use the AIDA-SEO model precisely:\n"
+        "    - **Attention (Hook):** 1 sentence targeting the core desire/pain of your persona.\n"
+        "    - **Interest (Benefits):** 3-4 bullet points (using '•') that translate features into benefits your persona cares about.\n"
+        "    - **Desire (Social Proof):** 1-2 lines of social proof (reviews, ratings) or trust signals (authenticity) that resonate with your persona.\n"
+        "    - **Action (CTA):** You do not need to write the CTA. It will be appended automatically."
     )
 
     prompt_lines.append(
-        f"Here are some master examples for your reference. Learn from their structure, "
-        f"item details they choose to highlight, and how they phrase the title and content sections:\n"
+        f"\n--- GOLD-STANDARD EXAMPLES ---"
+        f"\nThese examples show the desired structure, tone, and AIDA format. Learn from them:\n"
         f"{master_examples_json_str}"
     )
 

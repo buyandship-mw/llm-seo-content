@@ -17,7 +17,7 @@ CATEGORIES_FILE = os.path.join(CURRENT_DIR, "presets/categories.json")
 INTERESTS_FILE = os.path.join(CURRENT_DIR, "presets/interests.json")
 WAREHOUSES_FILE = os.path.join(CURRENT_DIR, "presets/warehouses.json")
 FOREX_RATES_FILE = os.path.join(CURRENT_DIR, "presets/forex_rates.json")
-INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test2.csv")
+INPUT_DATA_FILE = os.path.join(CURRENT_DIR, "data/test.csv")
 OUTPUT_POST_DATA_FILE = os.path.join(CURRENT_DIR, "output.csv")
 OUTPUT_IMAGE_FOLDER = os.path.join(CURRENT_DIR, "output_images")
 ABORTED_GENERATIONS_FILE = os.path.join(CURRENT_DIR, "aborted.csv")
@@ -57,7 +57,7 @@ def run_pipeline():
 
     # 2. Initialize AI Client
     ai_client = OpenAIClient()
-    input_items = input_items[:1]
+    input_items = input_items[:20]
 
     # # 3. Process the batch of input data
     print(f"\nProcessing {len(input_items)} items...")
